@@ -28,37 +28,51 @@ export default function ProjectManagement() {
           <div className={styles.actionsGrid}>
             {/* 新建项目卡片 */}
             <div className={styles.actionCard}>
-              <div className={styles.actionCardContent}>
-                <CreateProjectDialog
-                  onProjectCreated={() => {
-                    console.log("项目创建成功");
-                  }}
-                />
-              </div>
+              <CreateProjectDialog
+                onProjectCreated={() => {
+                  console.log("项目创建成功");
+                }}
+              />
             </div>
 
             {/* 打开项目卡片 */}
-            <OpenProjectDialog
-              trigger={
-                <div className={styles.actionCard}>
-                  <div className={styles.actionCardContent}>
+            <div className={styles.actionCard}>
+              <OpenProjectDialog
+                trigger={
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center", 
+                      gap: "12px",
+                      width: "100%",
+                      height: "100%",
+                      minHeight: "120px",
+                    }}
+                  >
                     <FolderOpenRegular className={styles.actionIcon} />
                     <span className={styles.actionText}>打开项目</span>
                   </div>
-                </div>
-              }
-              onProjectSelect={handleProjectSelect}
-            />
+                }
+                onProjectSelect={handleProjectSelect}
+              />
+            </div>
 
             {/* 导入项目卡片 */}
             <div
               className={styles.actionCard}
               onClick={() => console.log("导入项目")}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "12px",
+              }}
             >
-              <div className={styles.actionCardContent}>
-                <DocumentRegular className={styles.actionIcon} />
-                <span className={styles.actionText}>导入项目</span>
-              </div>
+              <DocumentRegular className={styles.actionIcon} />
+              <span className={styles.actionText}>导入项目</span>
             </div>
           </div>
         </div>

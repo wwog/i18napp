@@ -38,9 +38,11 @@ const useStyles = makeStyles({
     padding: "8px 0",
   },
   navItem: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     width: "100%",
-    justifyContent: "flex-start",
-    padding: "12px 16px",
+    padding: "12px 22px 12px 0px",
     borderRadius: "0px",
     fontSize: "14px",
     fontWeight: "400",

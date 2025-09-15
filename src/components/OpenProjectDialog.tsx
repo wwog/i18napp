@@ -196,7 +196,15 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={(_, data) => setOpen(data.open)}>
       <DialogTrigger disableButtonEnhancement>
-        {trigger}
+        <div style={{ 
+          width: "100%", 
+          height: "100%", 
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        }}>
+          {trigger}
+        </div>
       </DialogTrigger>
       <DialogSurface className={styles.dialogContent}>
         <DialogBody>

@@ -10,12 +10,22 @@ export async function boot_db() {
   const db = await Database.load("sqlite:i18napp.db");
   window.sqlite = db;
 
+  // 开发环境下清理数据库表
+  if (import.meta.env.DEV) {
+    console.log("开发环境：清理数据库表");
+    await db.execute(`DROP TABLE IF EXISTS supported_languages`);
+    await db.execute(`DROP TABLE IF EXISTS projects`);
+    await db.execute(`DROP TABLE IF EXISTS translations`);
+    await db.execute(`DROP VIEW IF EXISTS project_stats`);
+  }
+
   // 创建支持语言表
   await db.execute(`
     CREATE TABLE IF NOT EXISTS supported_languages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       code TEXT NOT NULL UNIQUE,
+      icon TEXT,
       is_active BOOLEAN DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -23,18 +33,18 @@ export async function boot_db() {
 
   // 初始化默认支持的语言
   const defaultLanguages = [
-    { name: "中文-简体", code: "zh-Hans" },
-    { name: "中文-繁体", code: "zh-Hant" },
-    { name: "英语", code: "en" },
-    { name: "日语", code: "ja" },
-    { name: "韩语", code: "ko" },
-    { name: "土耳其语", code: "tr" }
+    { name: "中文-简体", code: "zh-Hans", icon: "cn" },
+    { name: "中文-繁体", code: "zh-Hant", icon: "tw" },
+    { name: "英语", code: "en", icon: "us" },
+    { name: "日语", code: "ja", icon: "jp" },
+    { name: "韩语", code: "ko", icon: "kr" },
+    { name: "土耳其语", code: "tr", icon: "tr" },
   ];
 
   for (const lang of defaultLanguages) {
     await db.execute(
-      `INSERT OR IGNORE INTO supported_languages (name, code) VALUES (?, ?)`,
-      [lang.name, lang.code]
+      `INSERT OR IGNORE INTO supported_languages (name, code, icon) VALUES (?, ?, ?)`,
+      [lang.name, lang.code, lang.icon]
     );
   }
 

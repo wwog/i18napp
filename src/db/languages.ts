@@ -3,6 +3,7 @@ export interface SupportedLanguage {
   id: number;
   name: string;
   code: string;
+  icon?: string;
   is_active: boolean;
   created_at: string;
 }
@@ -10,6 +11,7 @@ export interface SupportedLanguage {
 export interface CreateLanguageData {
   name: string;
   code: string;
+  icon?: string;
 }
 
 // 语言数据库操作类
@@ -24,7 +26,7 @@ export class LanguageService {
   // 获取所有活跃的支持语言
   async getAllActiveLanguages(): Promise<SupportedLanguage[]> {
     const result = await this.db.select<any[]>(
-      `SELECT id, name, code, is_active, created_at 
+      `SELECT id, name, code, icon, is_active, created_at 
        FROM supported_languages 
        WHERE is_active = 1 
        ORDER BY name`
@@ -34,6 +36,7 @@ export class LanguageService {
       id: row.id,
       name: row.name,
       code: row.code,
+      icon: row.icon,
       is_active: !!row.is_active,
       created_at: row.created_at,
     }));
@@ -42,7 +45,7 @@ export class LanguageService {
   // 获取所有语言（包括非活跃的）
   async getAllLanguages(): Promise<SupportedLanguage[]> {
     const result = await this.db.select<any[]>(
-      `SELECT id, name, code, is_active, created_at 
+      `SELECT id, name, code, icon, is_active, created_at 
        FROM supported_languages 
        ORDER BY name`
     );
@@ -51,6 +54,7 @@ export class LanguageService {
       id: row.id,
       name: row.name,
       code: row.code,
+      icon: row.icon,
       is_active: !!row.is_active,
       created_at: row.created_at,
     }));
@@ -59,8 +63,8 @@ export class LanguageService {
   // 添加新语言
   async addLanguage(data: CreateLanguageData): Promise<number> {
     const result = await this.db.execute(
-      `INSERT INTO supported_languages (name, code) VALUES (?, ?)`,
-      [data.name, data.code]
+      `INSERT INTO supported_languages (name, code, icon) VALUES (?, ?, ?)`,
+      [data.name, data.code, data.icon || null]
     );
     
     if (result.lastInsertId === undefined) {
