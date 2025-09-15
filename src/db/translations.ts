@@ -72,27 +72,29 @@ export class TranslationService {
 
   // 批量添加翻译（同一个key的多种语言翻译）
   async bulkCreateTranslations(data: BulkCreateTranslationData): Promise<void> {
-    // 使用事务确保数据一致性
-    await this.db.execute('BEGIN TRANSACTION');
-    
     try {
+      // 使用单个 SQL 语句批量插入，避免事务问题
+      if (data.translations.length === 0) return;
+      
+      // 构建批量插入的 SQL 语句
+      const values = data.translations.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const sql = `INSERT INTO translations (project_id, key, language, value, is_completed) VALUES ${values}`;
+      
+      // 构建参数数组
+      const params: any[] = [];
       for (const translation of data.translations) {
-        await this.db.execute(
-          `INSERT INTO translations (project_id, key, language, value, is_completed) 
-           VALUES (?, ?, ?, ?, ?)`,
-          [
-            data.project_id,
-            data.key,
-            translation.language,
-            translation.value,
-            translation.is_completed === undefined ? false : translation.is_completed,
-          ]
+        params.push(
+          data.project_id,
+          data.key,
+          translation.language,
+          translation.value,
+          translation.is_completed === undefined ? false : translation.is_completed
         );
       }
       
-      await this.db.execute('COMMIT');
+      await this.db.execute(sql, params);
     } catch (error) {
-      await this.db.execute('ROLLBACK');
+      console.error("批量创建翻译失败:", error);
       throw error;
     }
   }
@@ -243,9 +245,7 @@ export class TranslationService {
 
   // 导入翻译数据
   async importTranslations(project_id: number, data: { [key: string]: { [language: string]: string } }): Promise<void> {
-    // 使用事务确保数据一致性
-    await this.db.execute('BEGIN TRANSACTION');
-    
+    // 不使用显式事务，依赖数据库的自动事务处理
     try {
       for (const key of Object.keys(data)) {
         const translations = data[key];
@@ -274,10 +274,8 @@ export class TranslationService {
           }
         }
       }
-      
-      await this.db.execute('COMMIT');
     } catch (error) {
-      await this.db.execute('ROLLBACK');
+      console.error("导入翻译失败:", error);
       throw error;
     }
   }

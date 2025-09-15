@@ -297,9 +297,10 @@ export const ProjectDevelopment: React.FC = () => {
       );
     } catch (error) {
       console.error("保存翻译失败:", error);
+      const errorMessage = error instanceof Error ? error.message : "未知错误";
       dispatchToast(
         <Toast>
-          <ToastTitle>保存翻译失败</ToastTitle>
+          <ToastTitle>保存翻译失败: {errorMessage}</ToastTitle>
         </Toast>,
         { intent: "error" }
       );
@@ -341,9 +342,10 @@ export const ProjectDevelopment: React.FC = () => {
       );
     } catch (error) {
       console.error("更新翻译失败:", error);
+      const errorMessage = error instanceof Error ? error.message : "未知错误";
       dispatchToast(
         <Toast>
-          <ToastTitle>更新翻译失败</ToastTitle>
+          <ToastTitle>更新翻译失败: {errorMessage}</ToastTitle>
         </Toast>,
         { intent: "error" }
       );
@@ -436,8 +438,8 @@ export const ProjectDevelopment: React.FC = () => {
   const handleJumpToItem = (itemKey: string) => {
     const success = DOMUtils.scrollToElement(`row-${itemKey}`, "center");
     if (success) {
-      // 添加高亮效果
-      DOMUtils.highlightElement(`row-${itemKey}`, 2000);
+      // 添加高亮效果，使用Griffel生成的样式类
+      DOMUtils.highlightElement(`row-${itemKey}`, 2000, classes.highlightRow);
     }
   };
 

@@ -187,10 +187,8 @@ export const useStyles = makeStyles({
     zIndex: 1000,
   },
   // 高亮效果样式
-  "@global": {
-    ".highlight": {
-      backgroundColor: `${tokens.colorBrandBackgroundHover} !important`,
-      transition: "background-color 0.3s ease",
-    },
+  highlightRow: {
+    backgroundColor: `${tokens.colorBrandBackgroundHover} !important`,
+    transition: "background-color 0.3s ease",
   },
 });
