@@ -13,7 +13,6 @@ import {
   TableCell,
   ProgressBar,
   Badge,
-  makeStyles,
   tokens,
   Toaster,
   useToastController,
@@ -38,6 +37,7 @@ import {
 } from "@fluentui/react-icons";
 import { projectService, Project } from "../db/projects";
 import { languageService, SupportedLanguage } from "../db/languages";
+import { translationService } from "../db/translations";
 import { TranslationKeyValidator } from "../utils/validation";
 import {
   TranslationItem,
@@ -135,29 +135,47 @@ export const ProjectDevelopment: React.FC = () => {
       );
       setLanguages(projectLanguages);
 
-      // TODO: 加载翻译数据 - 暂时使用模拟数据
-      const mockTranslations: TranslationItem[] = [
-        {
-          id: "1",
-          key: "welcome.title",
-          "zh-CN": "欢迎",
-          "en-US": "Welcome",
-          "ja-JP": "ようこそ",
-        },
-        {
-          id: "2",
-          key: "welcome.description",
-          "zh-CN": "欢迎使用我们的应用程序",
-          "en-US": "Welcome to our application",
-          "ja-JP": "",
-        },
-      ];
-      setTranslations(mockTranslations);
+      // 加载翻译数据
+      await loadTranslationData(parseInt(projectId), projectLanguages.map(lang => lang.code));
     } catch (error) {
       console.error("加载项目数据失败:", error);
       dispatchToast(
         <Toast>
           <ToastTitle>加载项目失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    }
+  };
+
+  // 从数据库加载翻译数据
+  const loadTranslationData = async (projectId: number, languageCodes: string[]) => {
+    try {
+      // 获取项目翻译分组数据
+      const translationGroups = await translationService.getProjectTranslations(projectId);
+      
+      // 将分组数据转换为UI需要的格式
+      const formattedTranslations: TranslationItem[] = translationGroups.map(group => {
+        const item: TranslationItem = {
+          id: group.key, // 使用key作为id
+          key: group.key
+        };
+        
+        // 为每个语言设置翻译值
+        languageCodes.forEach(langCode => {
+          const translation = group.translations.find(t => t.language === langCode);
+          item[langCode] = translation?.value || '';
+        });
+        
+        return item;
+      });
+      
+      setTranslations(formattedTranslations);
+    } catch (error) {
+      console.error("加载翻译数据失败:", error);
+      dispatchToast(
+        <Toast>
+          <ToastTitle>加载翻译数据失败</ToastTitle>
         </Toast>,
         { intent: "error" }
       );
@@ -223,7 +241,9 @@ export const ProjectDevelopment: React.FC = () => {
   };
 
   // 保存新翻译行
-  const handleSaveNewRow = () => {
+  const handleSaveNewRow = async () => {
+    if (!project) return;
+    
     const existingKeys = TranslationDataUtils.getAllKeys(translations);
     const validation = TranslationKeyValidator.validateComplete(
       newRowKey,
@@ -246,22 +266,44 @@ export const ProjectDevelopment: React.FC = () => {
       return;
     }
 
-    const languageCodes = languages.map((lang) => lang.code);
-    const newItem = TranslationDataUtils.createNewItem(
-      newRowKey,
-      languageCodes
-    );
+    try {
+      // 准备批量创建翻译的数据
+      const languageCodes = languages.map((lang) => lang.code);
+      const translations = languageCodes.map(langCode => ({
+        language: langCode,
+        value: '',
+        is_completed: false
+      }));
+      
+      // 保存到数据库
+      await translationService.bulkCreateTranslations({
+        project_id: project.id,
+        key: newRowKey.trim(),
+        translations: translations
+      });
+      
+      // 重新加载翻译数据
+      await loadTranslationData(project.id, languageCodes);
+      
+      // 重置UI状态
+      setIsAddingNew(false);
+      setNewRowKey("");
 
-    setTranslations((prev) => [...prev, newItem]);
-    setIsAddingNew(false);
-    setNewRowKey("");
-
-    dispatchToast(
-      <Toast>
-        <ToastTitle>添加翻译成功</ToastTitle>
-      </Toast>,
-      { intent: "success" }
-    );
+      dispatchToast(
+        <Toast>
+          <ToastTitle>添加翻译成功</ToastTitle>
+        </Toast>,
+        { intent: "success" }
+      );
+    } catch (error) {
+      console.error("保存翻译失败:", error);
+      dispatchToast(
+        <Toast>
+          <ToastTitle>保存翻译失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    }
   };
 
   // 取消添加新行
@@ -272,14 +314,40 @@ export const ProjectDevelopment: React.FC = () => {
   };
 
   // 更新翻译内容
-  const handleTranslationChange = (
+  const handleTranslationChange = async (
     itemId: string,
     languageCode: string,
     value: string
   ) => {
-    setTranslations((prev) =>
-      TranslationDataUtils.updateTranslation(prev, itemId, languageCode, value)
-    );
+    if (!project) return;
+    
+    try {
+      // 使用itemId作为key，因为在我们的数据结构中，itemId就是翻译key
+      const key = itemId;
+      const is_completed = value.trim() !== '';
+      
+      // 更新数据库
+      await translationService.updateTranslation(
+        project.id,
+        key,
+        languageCode,
+        value,
+        is_completed
+      );
+      
+      // 更新本地状态
+      setTranslations((prev) =>
+        TranslationDataUtils.updateTranslation(prev, itemId, languageCode, value)
+      );
+    } catch (error) {
+      console.error("更新翻译失败:", error);
+      dispatchToast(
+        <Toast>
+          <ToastTitle>更新翻译失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    }
   };
 
   // 处理选择项变化
@@ -321,19 +389,41 @@ export const ProjectDevelopment: React.FC = () => {
   };
 
   // 确认删除
-  const handleConfirmDelete = () => {
-    const idsToDelete = new Set(itemsToDelete.map((item) => item.id));
-    setTranslations((prev) => prev.filter((item) => !idsToDelete.has(item.id)));
-    setSelectedItems(new Set());
-    setIsDeleteDialogOpen(false);
-    setItemsToDelete([]);
+  const handleConfirmDelete = async () => {
+    if (!project) return;
+    
+    try {
+      // 在我们的设计中，item.id 实际上是翻译键
+      const keysToDelete = itemsToDelete.map(item => item.key);
+      
+      // 批量删除
+      for (const key of keysToDelete) {
+        await translationService.deleteTranslationKey(project.id, key);
+      }
+      
+      // 更新本地状态
+      const idsToDelete = new Set(itemsToDelete.map((item) => item.id));
+      setTranslations((prev) => prev.filter((item) => !idsToDelete.has(item.id)));
+      setSelectedItems(new Set());
+      setIsDeleteDialogOpen(false);
+      setItemsToDelete([]);
 
-    dispatchToast(
-      <Toast>
-        <ToastTitle>成功删除 {itemsToDelete.length} 个翻译项</ToastTitle>
-      </Toast>,
-      { intent: "success" }
-    );
+      dispatchToast(
+        <Toast>
+          <ToastTitle>成功删除 {itemsToDelete.length} 个翻译项</ToastTitle>
+        </Toast>,
+        { intent: "success" }
+      );
+    } catch (error) {
+      console.error("删除翻译失败:", error);
+      
+      dispatchToast(
+        <Toast>
+          <ToastTitle>删除翻译失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    }
   };
 
   // 取消删除
@@ -357,7 +447,7 @@ export const ProjectDevelopment: React.FC = () => {
       const appWindow = getCurrentWindow();
       // 重置为不可调整大小
       await appWindow.setResizable(false);
-      // 可以选择恢复到默认大小，这里暂时不设置，保持当前大小
+      await appWindow.setSize(new LogicalSize(800, 650));
     } catch (error) {
       console.error("重置窗口状态失败:", error);
     } finally {
@@ -367,7 +457,7 @@ export const ProjectDevelopment: React.FC = () => {
   };
 
   // 导出翻译数据
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!project) {
       dispatchToast(
         <Toast>
@@ -379,6 +469,9 @@ export const ProjectDevelopment: React.FC = () => {
     }
 
     try {
+      // 使用翻译服务导出数据
+      const translationsData = await translationService.exportProjectTranslations(project.id);
+      
       const exportData = {
         project: {
           id: project.id,
@@ -389,7 +482,7 @@ export const ProjectDevelopment: React.FC = () => {
           code: lang.code,
           name: lang.name,
         })),
-        translations: translations,
+        translations: translationsData,
         exportTime: new Date().toISOString(),
       };
 
@@ -691,6 +784,14 @@ export const ProjectDevelopment: React.FC = () => {
                             {item.key}
                           </span>
                         </div>
+                        <Button
+                          appearance="subtle"
+                          icon={<DeleteRegular />}
+                          size="small"
+                          onClick={() => handleDeleteSingle(item)}
+                          title="删除此翻译"
+                          aria-label="删除此翻译"
+                        />
                       </div>
                     </TableCell>
                     {languages.map((lang) => (

@@ -16,7 +16,8 @@ export async function boot_db() {
     // await db.execute(`DROP TABLE IF EXISTS supported_languages`);
     // await db.execute(`DROP TABLE IF EXISTS projects`);
     // await db.execute(`DROP TABLE IF EXISTS translations`);
-    // await db.execute(`DROP VIEW IF EXISTS project_stats`);
+    // 重新创建视图以应用更新
+    await db.execute(`DROP VIEW IF EXISTS project_stats`);
   }
 
   // 创建支持语言表
@@ -77,7 +78,7 @@ export async function boot_db() {
     )
   `);
 
-  // 创建项目统计视图
+  // 创建项目统计视图（简化版，主要用于向后兼容）
   await db.execute(`
     CREATE VIEW IF NOT EXISTS project_stats AS
     SELECT 
@@ -88,11 +89,9 @@ export async function boot_db() {
       p.created_at,
       p.updated_at,
       p.is_completed,
-      COUNT(t.id) as total_translations,
-      COUNT(CASE WHEN t.is_completed = 1 THEN 1 END) as completed_translations
+      0 as total_translations,
+      0 as completed_translations
     FROM projects p
-    LEFT JOIN translations t ON p.id = t.project_id
-    GROUP BY p.id
   `);
 
   console.log("数据库初始化完成");

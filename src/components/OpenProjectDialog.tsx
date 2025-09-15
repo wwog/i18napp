@@ -181,7 +181,12 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
   }, [open]);
 
   const calculateProgress = (completed: number, total: number) => {
-    return Math.round((completed / total) * 100);
+    // 处理 undefined, null 或无效值
+    const completedCount = completed || 0;
+    const totalCount = total || 0;
+    
+    if (totalCount === 0) return 0;
+    return Math.round((completedCount / totalCount) * 100);
   };
 
   const formatDate = (dateString: string) => {

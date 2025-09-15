@@ -46,32 +46,66 @@ export class ProjectService {
   async getAllProjects(): Promise<Project[]> {
     const result = await this.db.select<any[]>(
       `SELECT 
-         id, name, description, selected_languages, created_at, updated_at, is_completed,
-         total_translations, completed_translations
-       FROM project_stats 
+         id, name, description, selected_languages, created_at, updated_at, is_completed
+       FROM projects 
        ORDER BY updated_at DESC`
     );
 
-    return result.map(row => ({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      selected_languages: JSON.parse(row.selected_languages || '[]'),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      is_completed: !!row.is_completed,
-      total_translations: row.total_translations || 0,
-      completed_translations: row.completed_translations || 0,
+    // 为每个项目计算统计信息
+    const projects = await Promise.all(result.map(async (row) => {
+      const stats = await this.getProjectStats(row.id);
+      return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        selected_languages: JSON.parse(row.selected_languages || '[]'),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        is_completed: !!row.is_completed,
+        total_translations: stats.total_keys,
+        completed_translations: stats.completed_keys,
+      };
     }));
+
+    return projects;
+  }
+
+  // 计算项目统计信息
+  private async getProjectStats(projectId: number): Promise<{total_keys: number, completed_keys: number}> {
+    // 获取项目总的翻译键数量
+    const totalKeysResult = await this.db.select<any[]>(
+      `SELECT COUNT(DISTINCT key) as count FROM translations WHERE project_id = ?`,
+      [projectId]
+    );
+    
+    const totalKeys = totalKeysResult[0]?.count || 0;
+    
+    if (totalKeys === 0) {
+      return { total_keys: 0, completed_keys: 0 };
+    }
+    
+    // 获取完成的翻译键数量（所有语言都已完成的键）
+    const completedKeysResult = await this.db.select<any[]>(
+      `SELECT COUNT(*) as count FROM (
+        SELECT key FROM translations 
+        WHERE project_id = ? 
+        GROUP BY key 
+        HAVING COUNT(*) > 0 AND SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) = COUNT(*)
+      )`,
+      [projectId]
+    );
+    
+    const completedKeys = completedKeysResult[0]?.count || 0;
+    
+    return { total_keys: totalKeys, completed_keys: completedKeys };
   }
 
   // 根据ID获取项目
   async getProjectById(id: number): Promise<Project | null> {
     const result = await this.db.select<any[]>(
       `SELECT 
-         id, name, description, selected_languages, created_at, updated_at, is_completed,
-         total_translations, completed_translations
-       FROM project_stats 
+         id, name, description, selected_languages, created_at, updated_at, is_completed
+       FROM projects 
        WHERE id = ?`,
       [id]
     );
@@ -79,6 +113,8 @@ export class ProjectService {
     if (result.length === 0) return null;
 
     const row = result[0];
+    const stats = await this.getProjectStats(row.id);
+    
     return {
       id: row.id,
       name: row.name,
@@ -87,8 +123,8 @@ export class ProjectService {
       created_at: row.created_at,
       updated_at: row.updated_at,
       is_completed: !!row.is_completed,
-      total_translations: row.total_translations || 0,
-      completed_translations: row.completed_translations || 0,
+      total_translations: stats.total_keys,
+      completed_translations: stats.completed_keys,
     };
   }
 
