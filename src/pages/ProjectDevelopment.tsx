@@ -573,6 +573,8 @@ export const ProjectDevelopment: React.FC = () => {
             placeholder="搜索键或翻译内容..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
           />
         </div>
 
@@ -743,6 +745,8 @@ export const ProjectDevelopment: React.FC = () => {
                         onChange={(e) => handleKeyInputChange(e.target.value)}
                         placeholder="输入翻译键... (仅支持字母、数字、点号、下划线)"
                         className={classes.keyInput}
+                        autoComplete="off"
+                        spellCheck={false}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             handleSaveNewRow();
@@ -796,6 +800,8 @@ export const ProjectDevelopment: React.FC = () => {
                         <Input
                           placeholder={`输入${lang.name}翻译...`}
                           className={classes.translationInput}
+                          autoComplete="off"
+                          spellCheck={false}
                           disabled
                         />
                       </TableCell>
@@ -868,6 +874,8 @@ export const ProjectDevelopment: React.FC = () => {
                           }
                           placeholder={`输入${lang.name}...`}
                           className={classes.translationInput}
+                          autoComplete="off"
+                          spellCheck={false}
                         />
                       </TableCell>
                     ))}
