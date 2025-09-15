@@ -107,6 +107,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
   };
 
   const handleLanguageChange = (languageCode: string, checked: boolean) => {
+    console.log("handleLanguageChange", languageCode, checked);
     setFormData((prev) => ({
       ...prev,
       selectedLanguages: checked
@@ -269,15 +270,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                             handleLanguageChange(language.code, !isSelected)
                           }
                         >
-                          <Checkbox
-                            checked={isSelected}
-                            onChange={(_, data) =>
-                              handleLanguageChange(
-                                language.code,
-                                !!data.checked
-                              )
-                            }
-                          />
+                          <Checkbox checked={isSelected} />
                           <div className={classes.languageDesc}>
                             {language.icon && (
                               <img
