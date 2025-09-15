@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogTrigger,
@@ -75,6 +76,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
   onProjectCreated,
 }) => {
   const classes = useStyles();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -138,7 +140,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
         selected_languages: formData.selectedLanguages,
       };
 
-      await projectService.createProject(projectData);
+      const newProjectId = await projectService.createProject(projectData);
 
       setIsOpen(false);
       setCurrentStep(1);
@@ -148,6 +150,9 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
         selectedLanguages: [],
       });
       onProjectCreated();
+      
+      // 导航到项目开发页面
+      navigate(`/project/${newProjectId}`);
     } catch (error) {
       console.error("创建项目失败:", error);
       setError("创建项目失败，请重试");

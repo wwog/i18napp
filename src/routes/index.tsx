@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 import { MainLayout } from "../components/MainLayout";
+import { ProjectDevelopment } from "../pages/ProjectDevelopment";
 
 const NotFound = () => (
   <div style={{ padding: 16 }}>
@@ -13,6 +14,7 @@ export const router = createBrowserRouter([
     path: "/",
     children: [
       { index: true, element: <MainLayout /> },
+      { path: "project/:projectId", element: <ProjectDevelopment /> },
       { path: "*", element: <NotFound /> },
     ],
   },

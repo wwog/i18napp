@@ -57,9 +57,10 @@ const useStyles = makeStyles({
   },
   navItemActive: {
     backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundInverted,
+    color: tokens.colorNeutralForegroundOnBrand,
     "&:hover": {
       backgroundColor: tokens.colorBrandBackgroundHover,
+      color: tokens.colorNeutralForegroundOnBrand,
     },
   },
   navIcon: {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogTrigger,
@@ -140,6 +141,7 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
   onProjectSelect 
 }) => {
   const styles = useStyles();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -191,6 +193,9 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
       onProjectSelect(project);
     }
     setOpen(false);
+    
+    // 导航到项目开发页面
+    navigate(`/project/${project.id}`);
   };
 
   return (

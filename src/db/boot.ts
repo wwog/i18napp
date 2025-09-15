@@ -12,11 +12,11 @@ export async function boot_db() {
 
   // 开发环境下清理数据库表
   if (import.meta.env.DEV) {
-    console.log("开发环境：清理数据库表");
-    await db.execute(`DROP TABLE IF EXISTS supported_languages`);
-    await db.execute(`DROP TABLE IF EXISTS projects`);
-    await db.execute(`DROP TABLE IF EXISTS translations`);
-    await db.execute(`DROP VIEW IF EXISTS project_stats`);
+    // console.log("开发环境：清理数据库表");
+    // await db.execute(`DROP TABLE IF EXISTS supported_languages`);
+    // await db.execute(`DROP TABLE IF EXISTS projects`);
+    // await db.execute(`DROP TABLE IF EXISTS translations`);
+    // await db.execute(`DROP VIEW IF EXISTS project_stats`);
   }
 
   // 创建支持语言表
