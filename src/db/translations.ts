@@ -33,11 +33,25 @@ export interface BulkCreateTranslationData {
 // 翻译分组接口，用于在UI中展示
 export interface TranslationGroup {
   key: string;
+  sort_order: number;
   translations: {
     language: string;
     value: string;
     is_completed: boolean;
   }[];
+}
+
+// 排序选项枚举
+export enum SortOption {
+  TIME_DESC = 'time_desc',  // 按时间降序（新增在前）
+  TIME_ASC = 'time_asc',    // 按时间升序
+  KEY_ASC = 'key_asc',      // 按键名升序
+  KEY_DESC = 'key_desc',    // 按键名降序
+}
+
+// 排序配置接口
+export interface SortConfig {
+  sortBy: SortOption;
 }
 
 // 翻译数据库操作类
@@ -51,15 +65,23 @@ export class TranslationService {
 
   // 添加单条翻译
   async createTranslation(data: CreateTranslationData): Promise<number> {
+    // 获取当前最大的 sort_order 值
+    const maxSortResult = await this.db.select<any[]>(
+      `SELECT COALESCE(MAX(sort_order), 0) as max_sort FROM translations WHERE project_id = ?`,
+      [data.project_id]
+    );
+    const nextSortOrder = (maxSortResult[0]?.max_sort || 0) + 1;
+
     const result = await this.db.execute(
-      `INSERT INTO translations (project_id, key, language, value, is_completed) 
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO translations (project_id, key, language, value, is_completed, sort_order) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         data.project_id,
         data.key,
         data.language,
         data.value,
         data.is_completed === undefined ? false : data.is_completed,
+        nextSortOrder,
       ]
     );
     
@@ -76,9 +98,16 @@ export class TranslationService {
       // 使用单个 SQL 语句批量插入，避免事务问题
       if (data.translations.length === 0) return;
       
+      // 获取当前最大的 sort_order 值
+      const maxSortResult = await this.db.select<any[]>(
+        `SELECT COALESCE(MAX(sort_order), 0) as max_sort FROM translations WHERE project_id = ?`,
+        [data.project_id]
+      );
+      const nextSortOrder = (maxSortResult[0]?.max_sort || 0) + 1;
+      
       // 构建批量插入的 SQL 语句
-      const values = data.translations.map(() => '(?, ?, ?, ?, ?)').join(', ');
-      const sql = `INSERT INTO translations (project_id, key, language, value, is_completed) VALUES ${values}`;
+      const values = data.translations.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
+      const sql = `INSERT INTO translations (project_id, key, language, value, is_completed, sort_order) VALUES ${values}`;
       
       // 构建参数数组
       const params: any[] = [];
@@ -88,7 +117,8 @@ export class TranslationService {
           data.key,
           translation.language,
           translation.value,
-          translation.is_completed === undefined ? false : translation.is_completed
+          translation.is_completed === undefined ? false : translation.is_completed,
+          nextSortOrder
         );
       }
       
@@ -145,13 +175,32 @@ export class TranslationService {
     );
   }
 
-  // 获取项目所有翻译，按key分组
-  async getProjectTranslations(project_id: number): Promise<TranslationGroup[]> {
+  // 获取项目所有翻译，按key分组，支持排序
+  async getProjectTranslations(project_id: number, sortConfig: SortConfig = { sortBy: SortOption.TIME_DESC }): Promise<TranslationGroup[]> {
+    // 根据排序选项构建ORDER BY子句
+    let orderBy = '';
+    switch (sortConfig.sortBy) {
+      case SortOption.TIME_DESC:
+        orderBy = 'ORDER BY sort_order DESC, key';
+        break;
+      case SortOption.TIME_ASC:
+        orderBy = 'ORDER BY sort_order ASC, key';
+        break;
+      case SortOption.KEY_ASC:
+        orderBy = 'ORDER BY key ASC';
+        break;
+      case SortOption.KEY_DESC:
+        orderBy = 'ORDER BY key DESC';
+        break;
+      default:
+        orderBy = 'ORDER BY sort_order DESC, key';
+    }
+
     const result = await this.db.select<any[]>(
-      `SELECT key, language, value, is_completed 
+      `SELECT key, language, value, is_completed, sort_order
        FROM translations 
        WHERE project_id = ? 
-       ORDER BY key, language`,
+       ${orderBy}, language`,
       [project_id]
     );
 
@@ -162,6 +211,7 @@ export class TranslationService {
       if (!translationMap.has(row.key)) {
         translationMap.set(row.key, {
           key: row.key,
+          sort_order: row.sort_order || 0,
           translations: [],
         });
       }
@@ -194,13 +244,32 @@ export class TranslationService {
     }));
   }
 
-  // 搜索翻译
-  async searchTranslations(project_id: number, searchTerm: string): Promise<TranslationGroup[]> {
+  // 搜索翻译，支持排序
+  async searchTranslations(project_id: number, searchTerm: string, sortConfig: SortConfig = { sortBy: SortOption.TIME_DESC }): Promise<TranslationGroup[]> {
+    // 根据排序选项构建ORDER BY子句
+    let orderBy = '';
+    switch (sortConfig.sortBy) {
+      case SortOption.TIME_DESC:
+        orderBy = 'ORDER BY sort_order DESC, key';
+        break;
+      case SortOption.TIME_ASC:
+        orderBy = 'ORDER BY sort_order ASC, key';
+        break;
+      case SortOption.KEY_ASC:
+        orderBy = 'ORDER BY key ASC';
+        break;
+      case SortOption.KEY_DESC:
+        orderBy = 'ORDER BY key DESC';
+        break;
+      default:
+        orderBy = 'ORDER BY sort_order DESC, key';
+    }
+
     const result = await this.db.select<any[]>(
-      `SELECT key, language, value, is_completed 
+      `SELECT key, language, value, is_completed, sort_order
        FROM translations 
        WHERE project_id = ? AND (key LIKE ? OR value LIKE ?) 
-       ORDER BY key, language`,
+       ${orderBy}, language`,
       [project_id, `%${searchTerm}%`, `%${searchTerm}%`]
     );
     
@@ -211,6 +280,7 @@ export class TranslationService {
       if (!translationMap.has(row.key)) {
         translationMap.set(row.key, {
           key: row.key,
+          sort_order: row.sort_order || 0,
           translations: [],
         });
       }

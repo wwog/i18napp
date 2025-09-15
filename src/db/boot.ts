@@ -12,12 +12,11 @@ export async function boot_db() {
 
   // 开发环境下清理数据库表
   if (import.meta.env.DEV) {
-    // console.log("开发环境：清理数据库表");
+    console.log("开发环境：清理数据库表");
     // await db.execute(`DROP TABLE IF EXISTS supported_languages`);
     // await db.execute(`DROP TABLE IF EXISTS projects`);
     // await db.execute(`DROP TABLE IF EXISTS translations`);
-    // 重新创建视图以应用更新
-    await db.execute(`DROP VIEW IF EXISTS project_stats`);
+    // await db.execute(`DROP VIEW IF EXISTS project_stats`);
   }
 
   // 创建支持语言表
@@ -71,12 +70,20 @@ export async function boot_db() {
       language TEXT NOT NULL,
       value TEXT,
       is_completed BOOLEAN DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
       UNIQUE(project_id, key, language)
     )
   `);
+
+  // 为现有数据添加 sort_order 字段（如果不存在）
+  await db.execute(`
+    ALTER TABLE translations ADD COLUMN sort_order INTEGER DEFAULT 0
+  `).catch(() => {
+    // 忽略字段已存在的错误
+  });
 
   // 创建项目统计视图（简化版，主要用于向后兼容）
   await db.execute(`

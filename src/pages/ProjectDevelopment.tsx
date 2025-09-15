@@ -25,6 +25,8 @@ import {
   DialogContent,
   DialogBody,
   DialogActions,
+  Dropdown,
+  Option,
 } from "@fluentui/react-components";
 import {
   AddRegular,
@@ -37,7 +39,7 @@ import {
 } from "@fluentui/react-icons";
 import { projectService, Project } from "../db/projects";
 import { languageService, SupportedLanguage } from "../db/languages";
-import { translationService } from "../db/translations";
+import { translationService, SortOption, SortConfig } from "../db/translations";
 import { TranslationKeyValidator } from "../utils/validation";
 import {
   TranslationItem,
@@ -70,6 +72,11 @@ export const ProjectDevelopment: React.FC = () => {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [itemsToDelete, setItemsToDelete] = useState<TranslationItem[]>([]);
+
+  // 排序状态
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    sortBy: SortOption.TIME_DESC
+  });
 
   // 引用用于自动聚焦
   const newKeyInputRef = useRef<HTMLInputElement>(null);
@@ -136,7 +143,7 @@ export const ProjectDevelopment: React.FC = () => {
       setLanguages(projectLanguages);
 
       // 加载翻译数据
-      await loadTranslationData(parseInt(projectId), projectLanguages.map(lang => lang.code));
+      await loadTranslationData(parseInt(projectId), projectLanguages.map(lang => lang.code), sortConfig);
     } catch (error) {
       console.error("加载项目数据失败:", error);
       dispatchToast(
@@ -149,10 +156,13 @@ export const ProjectDevelopment: React.FC = () => {
   };
 
   // 从数据库加载翻译数据
-  const loadTranslationData = async (projectId: number, languageCodes: string[]) => {
+  const loadTranslationData = async (projectId: number, languageCodes: string[], sortConfig?: SortConfig) => {
     try {
-      // 获取项目翻译分组数据
-      const translationGroups = await translationService.getProjectTranslations(projectId);
+      // 获取项目翻译分组数据，传递排序配置
+      const translationGroups = await translationService.getProjectTranslations(
+        projectId, 
+        sortConfig || { sortBy: SortOption.TIME_DESC }
+      );
       
       // 将分组数据转换为UI需要的格式
       const formattedTranslations: TranslationItem[] = translationGroups.map(group => {
@@ -196,7 +206,30 @@ export const ProjectDevelopment: React.FC = () => {
     languageCodes
   );
 
-  // 获取未完成的翻译项
+  // 处理排序变更
+  const handleSortChange = async (newSortConfig: SortConfig) => {
+    setSortConfig(newSortConfig);
+    if (project) {
+      const languageCodes = languages.map((lang) => lang.code);
+      await loadTranslationData(project.id, languageCodes, newSortConfig);
+    }
+  };
+
+  // 获取排序选项的显示文本
+  const getSortOptionText = (option: SortOption): string => {
+    switch (option) {
+      case SortOption.TIME_DESC:
+        return '按时间排序（新→旧）';
+      case SortOption.TIME_ASC:
+        return '按时间排序（旧→新）';
+      case SortOption.KEY_ASC:
+        return '按键名排序（A→Z）';
+      case SortOption.KEY_DESC:
+        return '按键名排序（Z→A）';
+      default:
+        return '按时间排序（新→旧）';
+    }
+  };
   const getIncompleteItems = () => {
     const languageCodes = languages.map((lang) => lang.code);
     return TranslationProgressCalculator.getIncompleteItems(
@@ -283,7 +316,7 @@ export const ProjectDevelopment: React.FC = () => {
       });
       
       // 重新加载翻译数据
-      await loadTranslationData(project.id, languageCodes);
+      await loadTranslationData(project.id, languageCodes, sortConfig);
       
       // 重置UI状态
       setIsAddingNew(false);
@@ -639,6 +672,32 @@ export const ProjectDevelopment: React.FC = () => {
             >
               导出翻译
             </Button>
+            
+            {/* 排序选择器 - 只有当有翻译数据时才显示 */}
+            {translations.length > 0 && (
+              <Dropdown
+                placeholder="选择排序方式"
+                value={getSortOptionText(sortConfig.sortBy)}
+                onOptionSelect={(_, data) => {
+                  if (data.optionValue) {
+                    handleSortChange({ sortBy: data.optionValue as SortOption });
+                  }
+                }}
+              >
+                <Option value={SortOption.TIME_DESC}>
+                  按时间排序（新→旧）
+                </Option>
+                <Option value={SortOption.TIME_ASC}>
+                  按时间排序（旧→新）
+                </Option>
+                <Option value={SortOption.KEY_ASC}>
+                  按键名排序（A→Z）
+                </Option>
+                <Option value={SortOption.KEY_DESC}>
+                  按键名排序（Z→A）
+                </Option>
+              </Dropdown>
+            )}
           </div>
 
           {/* 表格包装器 */}
