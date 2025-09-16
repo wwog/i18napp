@@ -6,7 +6,7 @@ import {
   WeatherSunnyRegular,
 } from "@fluentui/react-icons";
 import { useTheme } from "../contexts/ThemeContext";
-import { makeStyles, tokens } from "@fluentui/react-components";
+import { makeStyles, tokens, mergeClasses } from "@fluentui/react-components";
 
 const useStyles = makeStyles({
   sidebar: {
@@ -110,9 +110,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       {/* 导航区域 */}
       <div className={styles.navigation}>
         <button
-          className={`${styles.navItem} ${
-            activeTab === 'projects' ? styles.navItemActive : ''
-          }`}
+          className={mergeClasses(
+            styles.navItem,
+            activeTab === 'projects' && styles.navItemActive
+          )}
           onClick={() => onTabChange('projects')}
         >
           <FolderRegular className={styles.navIcon} />
@@ -120,9 +121,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
         </button>
         
         <button
-          className={`${styles.navItem} ${
-            activeTab === 'settings' ? styles.navItemActive : ''
-          }`}
+          className={mergeClasses(
+            styles.navItem,
+            activeTab === 'settings' && styles.navItemActive
+          )}
           onClick={() => onTabChange('settings')}
         >
           <SettingsRegular className={styles.navIcon} />

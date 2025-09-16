@@ -285,8 +285,20 @@ export const ProjectDevelopment: React.FC = () => {
     setKeyValidationError(null);
   };
 
-  // 更新翻译内容
-  const handleTranslationChange = async (
+  // 处理翻译输入变化（仅更新本地状态）
+  const handleTranslationInputChange = (
+    itemId: string,
+    languageCode: string,
+    value: string
+  ) => {
+    // 只更新本地状态，不触发数据库操作
+    setTranslations((prev) =>
+      TranslationDataUtils.updateTranslation(prev, itemId, languageCode, value)
+    );
+  };
+
+  // 失去焦点时保存翻译到数据库
+  const handleTranslationBlur = async (
     itemId: string,
     languageCode: string,
     value: string
@@ -304,17 +316,12 @@ export const ProjectDevelopment: React.FC = () => {
         languageCode,
         value
       );
-      
-      // 更新本地状态
-      setTranslations((prev) =>
-        TranslationDataUtils.updateTranslation(prev, itemId, languageCode, value)
-      );
     } catch (error) {
-      console.error("更新翻译失败:", error);
+      console.error("保存翻译失败:", error);
       const errorMessage = error instanceof Error ? error.message : "未知错误";
       dispatchToast(
         <Toast>
-          <ToastTitle>更新翻译失败: {errorMessage}</ToastTitle>
+          <ToastTitle>保存翻译失败: {errorMessage}</ToastTitle>
         </Toast>,
         { intent: "error" }
       );
@@ -769,7 +776,14 @@ export const ProjectDevelopment: React.FC = () => {
                         <Input
                           value={item[lang.code] || ""}
                           onChange={(e) =>
-                            handleTranslationChange(
+                            handleTranslationInputChange(
+                              item.id,
+                              lang.code,
+                              e.target.value
+                            )
+                          }
+                          onBlur={(e) =>
+                            handleTranslationBlur(
                               item.id,
                               lang.code,
                               e.target.value

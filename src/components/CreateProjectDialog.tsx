@@ -150,7 +150,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
         selectedLanguages: [],
       });
       onProjectCreated();
-      
+
       // 导航到项目开发页面
       navigate(`/project/${newProjectId}`);
     } catch (error) {
@@ -188,8 +188,6 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
     setError("");
     setCurrentStep(1);
   };
-
-  console.log("selectedLanguages", formData.selectedLanguages);
 
   return (
     <Dialog open={isOpen} onOpenChange={(_, data) => setIsOpen(data.open)}>

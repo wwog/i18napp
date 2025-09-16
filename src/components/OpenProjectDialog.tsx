@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogTrigger,
@@ -12,21 +12,13 @@ import {
   Badge,
   ProgressBar,
 } from "@fluentui/react-components";
-import {
-  FolderOpenRegular,
-  TranslateRegular,
-} from "@fluentui/react-icons";
-import { makeStyles, tokens } from "@fluentui/react-components";
+import { FolderOpenRegular, TranslateRegular } from "@fluentui/react-icons";
+import { makeStyles, tokens, mergeClasses } from "@fluentui/react-components";
 import { projectService, Project } from "../db/projects";
 import { languageService } from "../db/languages";
 
 const useStyles = makeStyles({
-  dialogContent: {
-    minWidth: "600px",
-    maxWidth: "800px",
-    maxHeight: "70vh",
-    overflow: "hidden",
-  },
+  dialogContent: {},
   projectList: {
     maxHeight: "400px",
     overflowY: "auto",
@@ -98,11 +90,7 @@ const useStyles = makeStyles({
     gap: "4px",
   },
   languageTag: {
-    backgroundColor: tokens.colorNeutralBackground3,
-    color: tokens.colorNeutralForeground1,
     fontSize: "11px",
-    padding: "2px 6px",
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   progressSection: {
     display: "flex",
@@ -136,9 +124,9 @@ interface OpenProjectDialogProps {
   onProjectSelect?: (project: Project) => void;
 }
 
-export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({ 
-  trigger, 
-  onProjectSelect 
+export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
+  trigger,
+  onProjectSelect,
 }) => {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -151,7 +139,7 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
     setLoading(true);
     try {
       const projectsData = await projectService.getAllProjects();
-      
+
       // 为每个项目获取语言名称
       const projectsWithLanguageNames = await Promise.all(
         projectsData.map(async (project) => {
@@ -164,7 +152,7 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
           };
         })
       );
-      
+
       setProjects(projectsWithLanguageNames);
     } catch (error) {
       console.error("加载项目失败:", error);
@@ -184,13 +172,13 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
     // 处理 undefined, null 或无效值
     const completedCount = completed || 0;
     const totalCount = total || 0;
-    
+
     if (totalCount === 0) return 0;
     return Math.round((completedCount / totalCount) * 100);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('zh-CN');
+    return new Date(dateString).toLocaleDateString("zh-CN");
   };
 
   const handleProjectSelect = (project: Project) => {
@@ -198,7 +186,7 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
       onProjectSelect(project);
     }
     setOpen(false);
-    
+
     // 导航到项目开发页面
     navigate(`/project/${project.id}`);
   };
@@ -206,13 +194,15 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={(_, data) => setOpen(data.open)}>
       <DialogTrigger disableButtonEnhancement>
-        <div style={{ 
-          width: "100%", 
-          height: "100%", 
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center"
-        }}>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           {trigger}
         </div>
       </DialogTrigger>
@@ -221,9 +211,7 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
           <DialogTitle>打开项目</DialogTitle>
           <DialogContent>
             {loading ? (
-              <div className={styles.loadingState}>
-                加载中...
-              </div>
+              <div className={styles.loadingState}>加载中...</div>
             ) : projects.length === 0 ? (
               <div className={styles.emptyState}>
                 暂无项目，请先创建一个项目
@@ -245,18 +233,19 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
                       <FolderOpenRegular className={styles.projectIcon} />
                       <div className={styles.projectDetails}>
                         <div className={styles.projectName}>{project.name}</div>
-                        
+
                         <div className={styles.projectMeta}>
                           <div className={styles.projectDate}>
                             {formatDate(project.updated_at)}
                           </div>
                           <Badge
                             appearance="filled"
-                            className={`${styles.statusBadge} ${
+                            className={mergeClasses(
+                              styles.statusBadge,
                               project.is_completed
                                 ? styles.statusCompleted
                                 : styles.statusInProgress
-                            }`}
+                            )}
                           >
                             {project.is_completed ? "已完成" : "进行中"}
                           </Badge>
@@ -266,16 +255,18 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
                         <div className={styles.languageSection}>
                           <TranslateRegular className={styles.languageIcon} />
                           <div className={styles.languageTags}>
-                            {(project.language_names || []).slice(0, 3).map((lang: string, index: number) => (
-                              <Badge
-                                key={index}
-                                size="small"
-                                appearance="outline"
-                                className={styles.languageTag}
-                              >
-                                {lang}
-                              </Badge>
-                            ))}
+                            {(project.language_names || [])
+                              .slice(0, 3)
+                              .map((lang: string, index: number) => (
+                                <Badge
+                                  key={index}
+                                  size="small"
+                                  appearance="outline"
+                                  className={styles.languageTag}
+                                >
+                                  {lang}
+                                </Badge>
+                              ))}
                             {(project.language_names || []).length > 3 && (
                               <Badge
                                 size="small"
@@ -295,9 +286,7 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
                             max={100}
                             className={styles.progressBar}
                           />
-                          <div className={styles.progressText}>
-                            {progress}%
-                          </div>
+                          <div className={styles.progressText}>{progress}%</div>
                         </div>
                       </div>
                     </div>

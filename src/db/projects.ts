@@ -84,15 +84,36 @@ export class ProjectService {
       return { total_keys: 0, completed_keys: 0 };
     }
     
-    // 获取完成的翻译键数量（所有语言都已完成的键）
+    // 获取项目支持的语言数量
+    const languagesResult = await this.db.select<any[]>(
+      `SELECT selected_languages FROM projects WHERE id = ?`,
+      [projectId]
+    );
+    
+    if (languagesResult.length === 0) {
+      return { total_keys: totalKeys, completed_keys: 0 };
+    }
+    
+    const selectedLanguages = JSON.parse(languagesResult[0].selected_languages || '[]');
+    const languageCount = selectedLanguages.length;
+    
+    if (languageCount === 0) {
+      return { total_keys: totalKeys, completed_keys: 0 };
+    }
+    
+    // 获取完成的翻译键数量（每个键在所有项目语言中都有非空翻译的键）
     const completedKeysResult = await this.db.select<any[]>(
       `SELECT COUNT(*) as count FROM (
-        SELECT key FROM translations 
+        SELECT key 
+        FROM translations 
         WHERE project_id = ? 
+          AND language IN (${selectedLanguages.map(() => '?').join(',')})
+          AND value IS NOT NULL 
+          AND TRIM(value) != ''
         GROUP BY key 
-        HAVING COUNT(*) > 0 AND SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) = COUNT(*)
+        HAVING COUNT(DISTINCT language) = ?
       )`,
-      [projectId]
+      [projectId, ...selectedLanguages, languageCount]
     );
     
     const completedKeys = completedKeysResult[0]?.count || 0;
