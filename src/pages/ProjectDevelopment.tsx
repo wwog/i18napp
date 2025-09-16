@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize } from "@tauri-apps/api/dpi";
 import {
   Button,
   Input,
@@ -37,8 +35,8 @@ import {
   ArrowExportRegular,
   DeleteRegular,
 } from "@fluentui/react-icons";
-import { projectService, Project } from "../db/projects";
-import { languageService, SupportedLanguage } from "../db/languages";
+import { Project } from "../db/projects";
+import { SupportedLanguage } from "../db/languages";
 import { translationService, SortOption, SortConfig } from "../db/translations";
 import { TranslationKeyValidator } from "../utils/validation";
 import {
@@ -47,7 +45,13 @@ import {
   TranslationSearchUtils,
   TranslationDataUtils,
 } from "../utils/translation";
-import { DOMUtils } from "../utils/common";
+import { 
+  ProjectDataManager, 
+  TranslationOperationManager, 
+  WindowLifecycleManager,
+  TranslationExportManager,
+  DOMUtils 
+} from "../utils";
 import { useStyles } from "./ProjectDevelopment.style";
 
 export const ProjectDevelopment: React.FC = () => {
@@ -88,36 +92,19 @@ export const ProjectDevelopment: React.FC = () => {
     }
   }, [projectId]);
 
-  // 窗口控制
+  // 窗口管理
   useEffect(() => {
-    const setupWindow = async () => {
-      try {
-        const appWindow = getCurrentWindow();
+    const lifecycle = WindowLifecycleManager.setupProjectDevelopmentLifecycle();
+    
+    lifecycle.setup().catch(error => {
+      console.error("设置窗口失败:", error);
+    });
 
-        // 设置窗口为可调整大小
-        await appWindow.setResizable(true);
-
-        // 设置窗口大小为 1250x750
-        await appWindow.setSize(new LogicalSize(1250, 750));
-      } catch (error) {
-        console.error("设置窗口失败:", error);
-      }
-    };
-
-    setupWindow();
-
-    // 组件卸载时恢复原始设置
+    // 组件卸载时清理
     return () => {
-      const resetWindow = async () => {
-        try {
-          const appWindow = getCurrentWindow();
-          // 重置为不可调整大小（根据原始设计）
-          await appWindow.setResizable(false);
-        } catch (error) {
-          console.error("重置窗口失败:", error);
-        }
-      };
-      resetWindow();
+      lifecycle.cleanup().catch(error => {
+        console.error("窗口清理失败:", error);
+      });
     };
   }, []);
 
@@ -125,67 +112,22 @@ export const ProjectDevelopment: React.FC = () => {
     try {
       if (!projectId) return;
 
-      // 加载项目信息
-      const projectData = await projectService.getProjectById(
-        parseInt(projectId)
-      );
-      if (!projectData) {
+      const projectIdNum = parseInt(projectId);
+      const { project: projectData, languages: projectLanguages, translations: translationData } = 
+        await ProjectDataManager.loadCompleteProjectData(projectIdNum, sortConfig);
+      
+      setProject(projectData);
+      setLanguages(projectLanguages);
+      setTranslations(translationData);
+    } catch (error) {
+      console.error("加载项目数据失败:", error);
+      if (error instanceof Error && error.message.includes('不存在')) {
         navigate("/");
         return;
       }
-      setProject(projectData);
-
-      // 加载项目支持的语言
-      const allLanguages = await languageService.getAllActiveLanguages();
-      const projectLanguages = allLanguages.filter((lang) =>
-        projectData.selected_languages.includes(lang.code)
-      );
-      setLanguages(projectLanguages);
-
-      // 加载翻译数据
-      await loadTranslationData(parseInt(projectId), projectLanguages.map(lang => lang.code), sortConfig);
-    } catch (error) {
-      console.error("加载项目数据失败:", error);
       dispatchToast(
         <Toast>
           <ToastTitle>加载项目失败</ToastTitle>
-        </Toast>,
-        { intent: "error" }
-      );
-    }
-  };
-
-  // 从数据库加载翻译数据
-  const loadTranslationData = async (projectId: number, languageCodes: string[], sortConfig?: SortConfig) => {
-    try {
-      // 获取项目翻译分组数据，传递排序配置
-      const translationGroups = await translationService.getProjectTranslations(
-        projectId, 
-        sortConfig || { sortBy: SortOption.TIME_DESC }
-      );
-      
-      // 将分组数据转换为UI需要的格式
-      const formattedTranslations: TranslationItem[] = translationGroups.map(group => {
-        const item: TranslationItem = {
-          id: group.key, // 使用key作为id
-          key: group.key
-        };
-        
-        // 为每个语言设置翻译值
-        languageCodes.forEach(langCode => {
-          const translation = group.translations.find(t => t.language === langCode);
-          item[langCode] = translation?.value || '';
-        });
-        
-        return item;
-      });
-      
-      setTranslations(formattedTranslations);
-    } catch (error) {
-      console.error("加载翻译数据失败:", error);
-      dispatchToast(
-        <Toast>
-          <ToastTitle>加载翻译数据失败</ToastTitle>
         </Toast>,
         { intent: "error" }
       );
@@ -211,7 +153,8 @@ export const ProjectDevelopment: React.FC = () => {
     setSortConfig(newSortConfig);
     if (project) {
       const languageCodes = languages.map((lang) => lang.code);
-      await loadTranslationData(project.id, languageCodes, newSortConfig);
+      const updatedTranslations = await ProjectDataManager.reloadTranslationData(project.id, languageCodes, newSortConfig);
+      setTranslations(updatedTranslations);
     }
   };
 
@@ -300,23 +243,18 @@ export const ProjectDevelopment: React.FC = () => {
     }
 
     try {
-      // 准备批量创建翻译的数据
       const languageCodes = languages.map((lang) => lang.code);
-      const translations = languageCodes.map(langCode => ({
-        language: langCode,
-        value: '',
-        is_completed: false
-      }));
       
-      // 保存到数据库
-      await translationService.bulkCreateTranslations({
-        project_id: project.id,
-        key: newRowKey.trim(),
-        translations: translations
-      });
+      // 使用TranslationOperationManager创建翻译
+      await TranslationOperationManager.createTranslation(
+        project.id,
+        newRowKey.trim(),
+        languageCodes
+      );
       
       // 重新加载翻译数据
-      await loadTranslationData(project.id, languageCodes, sortConfig);
+      const updatedTranslations = await ProjectDataManager.reloadTranslationData(project.id, languageCodes, sortConfig);
+      setTranslations(updatedTranslations);
       
       // 重置UI状态
       setIsAddingNew(false);
@@ -358,15 +296,13 @@ export const ProjectDevelopment: React.FC = () => {
     try {
       // 使用itemId作为key，因为在我们的数据结构中，itemId就是翻译key
       const key = itemId;
-      const is_completed = value.trim() !== '';
       
-      // 更新数据库
-      await translationService.updateTranslation(
+      // 使用TranslationOperationManager更新翻译
+      await TranslationOperationManager.updateTranslation(
         project.id,
         key,
         languageCode,
-        value,
-        is_completed
+        value
       );
       
       // 更新本地状态
@@ -431,10 +367,8 @@ export const ProjectDevelopment: React.FC = () => {
       // 在我们的设计中，item.id 实际上是翻译键
       const keysToDelete = itemsToDelete.map(item => item.key);
       
-      // 批量删除
-      for (const key of keysToDelete) {
-        await translationService.deleteTranslationKey(project.id, key);
-      }
+      // 使用TranslationOperationManager批量删除
+      await TranslationOperationManager.deleteTranslations(project.id, keysToDelete);
       
       // 更新本地状态
       const idsToDelete = new Set(itemsToDelete.map((item) => item.id));
@@ -479,12 +413,9 @@ export const ProjectDevelopment: React.FC = () => {
   // 返回首页并恢复窗口状态
   const handleGoBack = async () => {
     try {
-      const appWindow = getCurrentWindow();
-      // 重置为不可调整大小
-      await appWindow.setResizable(false);
-      await appWindow.setSize(new LogicalSize(800, 650));
+      await WindowLifecycleManager.cleanup();
     } catch (error) {
-      console.error("重置窗口状态失败:", error);
+      console.error("窗口清理失败:", error);
     } finally {
       // 无论窗口设置是否成功，都要导航回首页
       navigate("/");
@@ -504,36 +435,8 @@ export const ProjectDevelopment: React.FC = () => {
     }
 
     try {
-      // 使用翻译服务导出数据
-      const translationsData = await translationService.exportProjectTranslations(project.id);
-      
-      const exportData = {
-        project: {
-          id: project.id,
-          name: project.name,
-          description: project.description,
-        },
-        languages: languages.map((lang) => ({
-          code: lang.code,
-          name: lang.name,
-        })),
-        translations: translationsData,
-        exportTime: new Date().toISOString(),
-      };
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${project.name}_translations_${
-        new Date().toISOString().split("T")[0]
-      }.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // 使用TranslationExportManager导出数据
+      await TranslationExportManager.exportAsJson(project, languages, await translationService.exportProjectTranslations(project.id));
 
       dispatchToast(
         <Toast>
