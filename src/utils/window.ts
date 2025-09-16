@@ -12,7 +12,7 @@ export class WindowManager {
   private static readonly PROJECT_DEV_CONFIG = {
     width: 1250,
     height: 750,
-    resizable: true
+    resizable: true,
   };
 
   /**
@@ -21,7 +21,7 @@ export class WindowManager {
   private static readonly MAIN_CONFIG = {
     width: 800,
     height: 650,
-    resizable: false
+    resizable: false,
   };
 
   /**
@@ -35,10 +35,12 @@ export class WindowManager {
       await appWindow.setResizable(this.PROJECT_DEV_CONFIG.resizable);
 
       // 设置窗口大小
-      await appWindow.setSize(new LogicalSize(
-        this.PROJECT_DEV_CONFIG.width,
-        this.PROJECT_DEV_CONFIG.height
-      ));
+      await appWindow.setSize(
+        new LogicalSize(
+          this.PROJECT_DEV_CONFIG.width,
+          this.PROJECT_DEV_CONFIG.height
+        )
+      );
     } catch (error) {
       console.error("设置项目开发窗口失败:", error);
       throw new Error("设置窗口失败");
@@ -51,15 +53,14 @@ export class WindowManager {
   static async resetToMainWindow(): Promise<void> {
     try {
       const appWindow = getCurrentWindow();
-      
+
       // 重置为不可调整大小
       await appWindow.setResizable(this.MAIN_CONFIG.resizable);
-      
+
       // 重置窗口大小
-      await appWindow.setSize(new LogicalSize(
-        this.MAIN_CONFIG.width,
-        this.MAIN_CONFIG.height
-      ));
+      await appWindow.setSize(
+        new LogicalSize(this.MAIN_CONFIG.width, this.MAIN_CONFIG.height)
+      );
     } catch (error) {
       console.error("重置窗口状态失败:", error);
       throw new Error("重置窗口失败");
@@ -82,13 +83,13 @@ export class WindowManager {
    * 设置自定义窗口大小
    */
   static async setCustomWindowSize(
-    width: number, 
-    height: number, 
+    width: number,
+    height: number,
     resizable: boolean = true
   ): Promise<void> {
     try {
       const appWindow = getCurrentWindow();
-      
+
       await appWindow.setResizable(resizable);
       await appWindow.setSize(new LogicalSize(width, height));
     } catch (error) {
@@ -113,7 +114,7 @@ export class WindowManager {
       return {
         width: physicalSize.width,
         height: physicalSize.height,
-        resizable: true // 可能需要根据实际 API 调整
+        resizable: true, // 可能需要根据实际 API 调整
       };
     } catch (error) {
       console.error("获取窗口信息失败:", error);
@@ -141,12 +142,12 @@ export class WindowLifecycleManager {
    */
   static async cleanup(): Promise<void> {
     const results = await Promise.allSettled(
-      this.cleanupCallbacks.map(callback => callback())
+      this.cleanupCallbacks.map((callback) => callback())
     );
-    
+
     // 记录失败的清理操作
     results.forEach((result, index) => {
-      if (result.status === 'rejected') {
+      if (result.status === "rejected") {
         console.warn(`清理操作 ${index} 失败:`, result.reason);
       }
     });
@@ -165,13 +166,14 @@ export class WindowLifecycleManager {
     return {
       setup: async () => {
         await WindowManager.setupProjectDevelopmentWindow();
-        
-        // 注册清理回调
-        this.registerCleanup(WindowManager.safeResetToMainWindow);
+
+        // 注册清理回调，使用箭头函数保持正确的上下文
+        this.registerCleanup(() => WindowManager.safeResetToMainWindow());
       },
       cleanup: async () => {
+        console.log("项目开发页面卸载，执行清理");
         await this.cleanup();
-      }
+      },
     };
   }
 }
