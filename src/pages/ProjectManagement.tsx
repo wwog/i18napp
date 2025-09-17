@@ -1,6 +1,6 @@
 import { FolderOpenRegular } from "@fluentui/react-icons";
 import { Project } from "../db/projects";
-import { makeStyles, tokens, Toaster, useToastController } from "@fluentui/react-components";
+import { makeStyles, tokens } from "@fluentui/react-components";
 import { CreateProjectDialog } from "../components/CreateProjectDialog";
 import { OpenProjectDialog } from "../components/OpenProjectDialog";
 import { ImportProjectDialog } from "../components/ImportProjectDialog";
@@ -190,8 +190,6 @@ const useStyles = makeStyles({
 
 export default function ProjectManagement() {
   const styles = useStyles();
-  const { dispatchToast } = useToastController();
-  const toasterId = "project-management-toaster";
 
   const handleProjectSelect = (project: Project) => {
     console.log(`打开项目: ${project.name}`);
@@ -201,8 +199,6 @@ export default function ProjectManagement() {
 
   return (
     <div className={styles.container}>
-      <Toaster toasterId={toasterId} />
-      
       <div className={styles.content}>
         {/* 标题区域 */}
         <div className={styles.header}>
