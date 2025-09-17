@@ -25,6 +25,11 @@ import {
   DialogActions,
   Dropdown,
   Option,
+  Menu,
+  MenuTrigger,
+  MenuPopover,
+  MenuList,
+  MenuItem,
 } from "@fluentui/react-components";
 import {
   AddRegular,
@@ -544,17 +549,41 @@ export const ProjectDevelopment: React.FC = () => {
       <div className={classes.rightPanel}>
         {/* 页面头部 */}
         <div className={classes.header}>
-          <Button
-            appearance="subtle"
-            icon={<ArrowLeftRegular />}
-            onClick={handleGoBack}
-          >
-            返回
-          </Button>
-          <h1 className={classes.projectTitle}>{project.name}</h1>
-          {project.description && (
-            <Badge appearance="outline">{project.description}</Badge>
-          )}
+          {/* 左侧信息区域 */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <Button
+              appearance="subtle"
+              icon={<ArrowLeftRegular />}
+              onClick={handleGoBack}
+            >
+              返回
+            </Button>
+            <h1 className={classes.projectTitle}>{project.name}</h1>
+            {project.description && (
+              <Badge appearance="outline">{project.description}</Badge>
+            )}
+          </div>
+          
+          {/* 右侧操作区域 */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Menu>
+              <MenuTrigger disableButtonEnhancement>
+                <Button
+                  appearance="outline"
+                  icon={<ArrowExportRegular />}
+                >
+                  导出
+                </Button>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList>
+                  <MenuItem onClick={handleExport}>
+                    导出项目
+                  </MenuItem>
+                </MenuList>
+              </MenuPopover>
+            </Menu>
+          </div>
         </div>
 
         {/* 表格区域 */}
@@ -576,13 +605,6 @@ export const ProjectDevelopment: React.FC = () => {
               disabled={selectedItems.size === 0}
             >
               删除选中 ({selectedItems.size})
-            </Button>
-            <Button
-              appearance="outline"
-              icon={<ArrowExportRegular />}
-              onClick={handleExport}
-            >
-              导出翻译
             </Button>
             
             {/* 排序选择器 - 只有当有翻译数据时才显示 */}

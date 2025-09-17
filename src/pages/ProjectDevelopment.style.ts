@@ -31,6 +31,7 @@ export const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
     display: "flex",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: "16px",
   },
   projectTitle: {
