@@ -11,8 +11,11 @@ import {
   Button,
   Badge,
   ProgressBar,
+  Toast,
+  ToastTitle,
+  useToastController,
 } from "@fluentui/react-components";
-import { FolderOpenRegular, TranslateRegular } from "@fluentui/react-icons";
+import { FolderOpenRegular, TranslateRegular, DeleteRegular } from "@fluentui/react-icons";
 import { makeStyles, tokens, mergeClasses } from "@fluentui/react-components";
 import { projectService, Project } from "../db/projects";
 import { languageService } from "../db/languages";
@@ -34,6 +37,7 @@ const useStyles = makeStyles({
     borderRadius: tokens.borderRadiusMedium,
     cursor: "pointer",
     transition: "all 0.2s ease",
+    position: "relative",
     ":hover": {
       backgroundColor: tokens.colorNeutralBackground1Hover,
       border: `1px solid ${tokens.colorBrandBackground}`,
@@ -117,6 +121,28 @@ const useStyles = makeStyles({
     textAlign: "center",
     padding: "40px 20px",
   },
+  deleteButton: {
+    position: "absolute",
+    top: "8px",
+    right: "8px",
+    minWidth: "32px",
+    width: "32px",
+    height: "32px",
+    padding: "0",
+    borderRadius: "50%",
+    opacity: 0,
+    transition: "opacity 0.2s ease",
+    ":hover": {
+      backgroundColor: tokens.colorPaletteRedBackground1,
+    },
+  },
+  projectItemHover: {
+    ":hover": {
+      "& .delete-button": {
+        opacity: 1,
+      },
+    },
+  },
 });
 
 interface OpenProjectDialogProps {
@@ -130,9 +156,15 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
 }) => {
   const styles = useStyles();
   const navigate = useNavigate();
+  const { dispatchToast } = useToastController();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    show: boolean;
+    project: Project | null;
+  }>({ show: false, project: null });
+  const [deleting, setDeleting] = useState(false);
 
   // 加载项目数据
   const loadProjects = async () => {
@@ -191,25 +223,65 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
     navigate(`/project/${project.id}`);
   };
 
+  const handleDeleteClick = (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation(); // 防止触发项目选择
+    setDeleteConfirm({ show: true, project });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm.project) return;
+
+    setDeleting(true);
+    try {
+      await projectService.deleteProject(deleteConfirm.project.id);
+      
+      // 从列表中移除已删除的项目
+      setProjects(prev => prev.filter(p => p.id !== deleteConfirm.project!.id));
+      
+      dispatchToast(
+        <Toast>
+          <ToastTitle>项目删除成功</ToastTitle>
+        </Toast>,
+        { intent: "success" }
+      );
+    } catch (error) {
+      console.error('删除项目失败:', error);
+      dispatchToast(
+        <Toast>
+          <ToastTitle>删除项目失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm({ show: false, project: null });
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirm({ show: false, project: null });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(_, data) => setOpen(data.open)}>
-      <DialogTrigger disableButtonEnhancement>
-        <div
-          style={{
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {trigger}
-        </div>
-      </DialogTrigger>
-      <DialogSurface className={styles.dialogContent}>
-        <DialogBody>
-          <DialogTitle>打开项目</DialogTitle>
-          <DialogContent>
+    <>
+      <Dialog open={open} onOpenChange={(_, data) => setOpen(data.open)}>
+        <DialogTrigger disableButtonEnhancement>
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {trigger}
+          </div>
+        </DialogTrigger>
+        <DialogSurface className={styles.dialogContent}>
+          <DialogBody>
+            <DialogTitle>打开项目</DialogTitle>
+            <DialogContent>
             {loading ? (
               <div className={styles.loadingState}>加载中...</div>
             ) : projects.length === 0 ? (
@@ -227,10 +299,23 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
                   return (
                     <div
                       key={project.id}
-                      className={styles.projectItem}
+                      className={mergeClasses(styles.projectItem, styles.projectItemHover)}
                       onClick={() => handleProjectSelect(project)}
                     >
                       <FolderOpenRegular className={styles.projectIcon} />
+                      
+                      {/* 删除按钮 */}
+                      <Button
+                        appearance="subtle"
+                        icon={<DeleteRegular />}
+                        className={mergeClasses(styles.deleteButton, "delete-button")}
+                        onClick={(e) => handleDeleteClick(e, project)}
+                        title="删除项目"
+                        aria-label="删除项目"
+                        style={{
+                          color: tokens.colorPaletteRedForeground1,
+                        }}
+                      />
                       <div className={styles.projectDetails}>
                         <div className={styles.projectName}>{project.name}</div>
 
@@ -299,9 +384,55 @@ export const OpenProjectDialog: React.FC<OpenProjectDialogProps> = ({
             <Button appearance="secondary" onClick={() => setOpen(false)}>
               取消
             </Button>
-          </DialogActions>
-        </DialogBody>
-      </DialogSurface>
-    </Dialog>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+      
+      {/* 删除确认对话框 */}
+      <Dialog 
+        open={deleteConfirm.show} 
+        onOpenChange={(_, data) => {
+          if (!data.open) {
+            handleCancelDelete();
+          }
+        }}
+      >
+        <DialogSurface>
+          <DialogTitle>确认删除项目</DialogTitle>
+          <DialogContent>
+            <DialogBody>
+              <p>
+                您确定要删除项目 <strong>"{deleteConfirm.project?.name}"</strong> 吗？
+              </p>
+              <p style={{ color: tokens.colorPaletteRedForeground1, fontSize: "14px", marginTop: "12px" }}>
+                此操作不可撤销，将永久删除项目及其所有翻译数据。
+              </p>
+            </DialogBody>
+            <DialogActions>
+              <Button 
+                appearance="secondary" 
+                onClick={handleCancelDelete}
+                disabled={deleting}
+              >
+                取消
+              </Button>
+              <Button
+                appearance="primary"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                style={{
+                  backgroundColor: tokens.colorPaletteRedBackground3,
+                  borderColor: tokens.colorPaletteRedBorder2,
+                  color: "white",
+                }}
+              >
+                {deleting ? "删除中..." : "确认删除"}
+              </Button>
+            </DialogActions>
+          </DialogContent>
+        </DialogSurface>
+      </Dialog>
+    </>
   );
 };
