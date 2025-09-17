@@ -44,3 +44,13 @@ npm run dev
 # 构建应用
 npm run build
 ```
+工作流
+git push origin main
+
+git checkout release
+
+git merge main
+
+git push origin release
+
+git checkout main
