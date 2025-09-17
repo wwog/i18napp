@@ -21,4 +21,5 @@ export { WindowManager as Window } from './window';
 export { WindowLifecycleManager as WindowLifecycle } from './window';
 export { FileExportManager as FileExport } from './export';
 export { TranslationExportManager as TranslationExport } from './export';
+export { TranslationImportManager as TranslationImport } from './export';
 export { ExportStateManager as ExportState } from './export';

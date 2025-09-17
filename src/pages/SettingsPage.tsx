@@ -40,7 +40,12 @@ export const SettingsPage: React.FC = () => {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>设置</h1>
-      
+      <a target='_blank' href="https://github.com/wwog/i18napp/issues">Issues: https://github.com/wwog/i18napp/issues </a>
+      <h2> TODO: AI Power</h2>
+      <h2> TODO: MCP</h2>
+      <h2> TODO: OCR</h2>
+      <h2> TODO: Share Server</h2>
+      <h2> TODO: Settings</h2>
       <div className={styles.section}>
         <h2 className={styles.sectionTitle}>常规设置</h2>
         <div className={styles.placeholder}>
@@ -56,7 +61,7 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       <div className={styles.section}>
-        <h2 className={styles.sectionTitle}>翻译设置</h2>
+        <h2 className={styles.sectionTitle}>AI设置</h2>
         <div className={styles.placeholder}>
           翻译相关设置将在这里显示
         </div>

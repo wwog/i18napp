@@ -1,8 +1,9 @@
-import { DocumentRegular, FolderOpenRegular } from "@fluentui/react-icons";
+import { FolderOpenRegular } from "@fluentui/react-icons";
 import { Project } from "../db/projects";
-import { makeStyles, tokens } from "@fluentui/react-components";
+import { makeStyles, tokens, Toaster, useToastController } from "@fluentui/react-components";
 import { CreateProjectDialog } from "../components/CreateProjectDialog";
 import { OpenProjectDialog } from "../components/OpenProjectDialog";
+import { ImportProjectDialog } from "../components/ImportProjectDialog";
 
 const useStyles = makeStyles({
   container: {
@@ -189,14 +190,19 @@ const useStyles = makeStyles({
 
 export default function ProjectManagement() {
   const styles = useStyles();
+  const { dispatchToast } = useToastController();
+  const toasterId = "project-management-toaster";
 
   const handleProjectSelect = (project: Project) => {
     console.log(`打开项目: ${project.name}`);
     // 这里可以添加导航到项目详情页面的逻辑
+    // window.location.href = `/project/${project.id}`;
   };
 
   return (
     <div className={styles.container}>
+      <Toaster toasterId={toasterId} />
+      
       <div className={styles.content}>
         {/* 标题区域 */}
         <div className={styles.header}>
@@ -243,19 +249,8 @@ export default function ProjectManagement() {
             </div>
 
             {/* 导入项目卡片 */}
-            <div
-              className={styles.actionCard}
-              onClick={() => console.log("导入项目")}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "12px",
-              }}
-            >
-              <DocumentRegular className={styles.actionIcon} />
-              <span className={styles.actionText}>导入项目</span>
+            <div className={styles.actionCard}>
+              <ImportProjectDialog onProjectCreated={handleProjectSelect} />
             </div>
           </div>
         </div>
