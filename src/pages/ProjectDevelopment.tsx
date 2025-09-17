@@ -50,13 +50,13 @@ import {
   TranslationSearchUtils,
   TranslationDataUtils,
 } from "../utils/translation";
-import { 
-  ProjectDataManager, 
-  TranslationOperationManager, 
+import {
+  ProjectDataManager,
+  TranslationOperationManager,
   WindowLifecycleManager,
-  TranslationExportManager,
-  DOMUtils 
+  DOMUtils,
 } from "../utils";
+import { TranslationExportManager } from "../utils/export";
 import { useStyles } from "./ProjectDevelopment.style";
 
 export const ProjectDevelopment: React.FC = () => {
@@ -84,7 +84,7 @@ export const ProjectDevelopment: React.FC = () => {
 
   // 排序状态
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    sortBy: SortOption.TIME_DESC
+    sortBy: SortOption.TIME_DESC,
   });
 
   // 引用用于自动聚焦
@@ -100,14 +100,14 @@ export const ProjectDevelopment: React.FC = () => {
   // 窗口管理
   useEffect(() => {
     const lifecycle = WindowLifecycleManager.setupProjectDevelopmentLifecycle();
-    
-    lifecycle.setup().catch(error => {
+
+    lifecycle.setup().catch((error) => {
       console.error("设置窗口失败:", error);
     });
 
     // 组件卸载时清理
     return () => {
-      lifecycle.cleanup().catch(error => {
+      lifecycle.cleanup().catch((error) => {
         console.error("窗口清理失败:", error);
       });
     };
@@ -118,15 +118,21 @@ export const ProjectDevelopment: React.FC = () => {
       if (!projectId) return;
 
       const projectIdNum = parseInt(projectId);
-      const { project: projectData, languages: projectLanguages, translations: translationData } = 
-        await ProjectDataManager.loadCompleteProjectData(projectIdNum, sortConfig);
-      
+      const {
+        project: projectData,
+        languages: projectLanguages,
+        translations: translationData,
+      } = await ProjectDataManager.loadCompleteProjectData(
+        projectIdNum,
+        sortConfig
+      );
+
       setProject(projectData);
       setLanguages(projectLanguages);
       setTranslations(translationData);
     } catch (error) {
       console.error("加载项目数据失败:", error);
-      if (error instanceof Error && error.message.includes('不存在')) {
+      if (error instanceof Error && error.message.includes("不存在")) {
         navigate("/");
         return;
       }
@@ -158,7 +164,12 @@ export const ProjectDevelopment: React.FC = () => {
     setSortConfig(newSortConfig);
     if (project) {
       const languageCodes = languages.map((lang) => lang.code);
-      const updatedTranslations = await ProjectDataManager.reloadTranslationData(project.id, languageCodes, newSortConfig);
+      const updatedTranslations =
+        await ProjectDataManager.reloadTranslationData(
+          project.id,
+          languageCodes,
+          newSortConfig
+        );
       setTranslations(updatedTranslations);
     }
   };
@@ -167,15 +178,15 @@ export const ProjectDevelopment: React.FC = () => {
   const getSortOptionText = (option: SortOption): string => {
     switch (option) {
       case SortOption.TIME_DESC:
-        return '按时间排序（新→旧）';
+        return "按时间排序（新→旧）";
       case SortOption.TIME_ASC:
-        return '按时间排序（旧→新）';
+        return "按时间排序（旧→新）";
       case SortOption.KEY_ASC:
-        return '按键名排序（A→Z）';
+        return "按键名排序（A→Z）";
       case SortOption.KEY_DESC:
-        return '按键名排序（Z→A）';
+        return "按键名排序（Z→A）";
       default:
-        return '按时间排序（新→旧）';
+        return "按时间排序（新→旧）";
     }
   };
   const getIncompleteItems = () => {
@@ -224,7 +235,7 @@ export const ProjectDevelopment: React.FC = () => {
   // 保存新翻译行
   const handleSaveNewRow = async () => {
     if (!project) return;
-    
+
     const existingKeys = TranslationDataUtils.getAllKeys(translations);
     const validation = TranslationKeyValidator.validateComplete(
       newRowKey,
@@ -249,18 +260,23 @@ export const ProjectDevelopment: React.FC = () => {
 
     try {
       const languageCodes = languages.map((lang) => lang.code);
-      
+
       // 使用TranslationOperationManager创建翻译
       await TranslationOperationManager.createTranslation(
         project.id,
         newRowKey.trim(),
         languageCodes
       );
-      
+
       // 重新加载翻译数据
-      const updatedTranslations = await ProjectDataManager.reloadTranslationData(project.id, languageCodes, sortConfig);
+      const updatedTranslations =
+        await ProjectDataManager.reloadTranslationData(
+          project.id,
+          languageCodes,
+          sortConfig
+        );
       setTranslations(updatedTranslations);
-      
+
       // 重置UI状态
       setIsAddingNew(false);
       setNewRowKey("");
@@ -309,11 +325,11 @@ export const ProjectDevelopment: React.FC = () => {
     value: string
   ) => {
     if (!project) return;
-    
+
     try {
       // 使用itemId作为key，因为在我们的数据结构中，itemId就是翻译key
       const key = itemId;
-      
+
       // 使用TranslationOperationManager更新翻译
       await TranslationOperationManager.updateTranslation(
         project.id,
@@ -374,17 +390,22 @@ export const ProjectDevelopment: React.FC = () => {
   // 确认删除
   const handleConfirmDelete = async () => {
     if (!project) return;
-    
+
     try {
       // 在我们的设计中，item.id 实际上是翻译键
-      const keysToDelete = itemsToDelete.map(item => item.key);
-      
+      const keysToDelete = itemsToDelete.map((item) => item.key);
+
       // 使用TranslationOperationManager批量删除
-      await TranslationOperationManager.deleteTranslations(project.id, keysToDelete);
-      
+      await TranslationOperationManager.deleteTranslations(
+        project.id,
+        keysToDelete
+      );
+
       // 更新本地状态
       const idsToDelete = new Set(itemsToDelete.map((item) => item.id));
-      setTranslations((prev) => prev.filter((item) => !idsToDelete.has(item.id)));
+      setTranslations((prev) =>
+        prev.filter((item) => !idsToDelete.has(item.id))
+      );
       setSelectedItems(new Set());
       setIsDeleteDialogOpen(false);
       setItemsToDelete([]);
@@ -397,7 +418,7 @@ export const ProjectDevelopment: React.FC = () => {
       );
     } catch (error) {
       console.error("删除翻译失败:", error);
-      
+
       dispatchToast(
         <Toast>
           <ToastTitle>删除翻译失败</ToastTitle>
@@ -434,8 +455,8 @@ export const ProjectDevelopment: React.FC = () => {
     }
   };
 
-  // 导出翻译数据
-  const handleExport = async () => {
+  // 导出项目翻译数据
+  const handleExportProject = async () => {
     if (!project) {
       dispatchToast(
         <Toast>
@@ -447,20 +468,99 @@ export const ProjectDevelopment: React.FC = () => {
     }
 
     try {
-      // 使用TranslationExportManager导出数据
-      await TranslationExportManager.exportAsJson(project, languages, await translationService.exportProjectTranslations(project.id));
-
-      dispatchToast(
-        <Toast>
-          <ToastTitle>导出成功</ToastTitle>
-        </Toast>,
-        { intent: "success" }
-      );
+      const translationData = await translationService.exportProjectTranslations(project.id);
+      const success = await TranslationExportManager.exportProjectAsJson(project, languages, translationData);
+      
+      if (success) {
+        dispatchToast(
+          <Toast>
+            <ToastTitle>导出成功</ToastTitle>
+          </Toast>,
+          { intent: "success" }
+        );
+      }
     } catch (error) {
       console.error("导出失败:", error);
       dispatchToast(
         <Toast>
           <ToastTitle>导出失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    }
+  };
+
+  // 导出CSV格式
+  const handleExportCsv = async () => {
+    if (!project) {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>项目数据未加载</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+      return;
+    }
+
+    try {
+      const translationData = await translationService.exportProjectTranslations(project.id);
+      const success = await TranslationExportManager.exportAsCsv(project, languages, translationData);
+      
+      if (success) {
+        dispatchToast(
+          <Toast>
+            <ToastTitle>CSV导出成功</ToastTitle>
+          </Toast>,
+          { intent: "success" }
+        );
+      }
+    } catch (error) {
+      console.error("CSV导出失败:", error);
+      dispatchToast(
+        <Toast>
+          <ToastTitle>CSV导出失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    }
+  };
+
+  // 导出所有语言的单独 JSON 文件
+  const handleExportAllLanguages = async () => {
+    if (!project) {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>项目数据未加载</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+      return;
+    }
+
+    try {
+      const translationData = await translationService.exportProjectTranslations(project.id);
+      const result = await TranslationExportManager.exportAllLanguagesAsJson(project, languages, translationData);
+      
+      if (result.success > 0) {
+        dispatchToast(
+          <Toast>
+            <ToastTitle>成功导出 {result.success} 个语言文件{result.failed > 0 ? `，${result.failed} 个失败` : ''}</ToastTitle>
+          </Toast>,
+          { intent: result.failed > 0 ? "warning" : "success" }
+        );
+      } else {
+        dispatchToast(
+          <Toast>
+            <ToastTitle>导出被取消</ToastTitle>
+          </Toast>,
+          { intent: "info" }
+        );
+      }
+    } catch (error) {
+      console.error("分语言导出失败:", error);
+      dispatchToast(
+        <Toast>
+          <ToastTitle>分语言导出失败</ToastTitle>
         </Toast>,
         { intent: "error" }
       );
@@ -563,23 +663,20 @@ export const ProjectDevelopment: React.FC = () => {
               <Badge appearance="outline">{project.description}</Badge>
             )}
           </div>
-          
+
           {/* 右侧操作区域 */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Menu>
               <MenuTrigger disableButtonEnhancement>
-                <Button
-                  appearance="outline"
-                  icon={<ArrowExportRegular />}
-                >
+                <Button appearance="outline" icon={<ArrowExportRegular />}>
                   导出
                 </Button>
               </MenuTrigger>
               <MenuPopover>
                 <MenuList>
-                  <MenuItem onClick={handleExport}>
-                    导出项目
-                  </MenuItem>
+                  <MenuItem onClick={handleExportProject}>导出项目（JSON）</MenuItem>
+                  <MenuItem onClick={handleExportCsv}>导出表格（CSV）</MenuItem>
+                  <MenuItem onClick={handleExportAllLanguages}>分语言导出（JSON）</MenuItem>
                 </MenuList>
               </MenuPopover>
             </Menu>
@@ -606,7 +703,7 @@ export const ProjectDevelopment: React.FC = () => {
             >
               删除选中 ({selectedItems.size})
             </Button>
-            
+
             {/* 排序选择器 - 只有当有翻译数据时才显示 */}
             {translations.length > 0 && (
               <Dropdown
@@ -614,22 +711,18 @@ export const ProjectDevelopment: React.FC = () => {
                 value={getSortOptionText(sortConfig.sortBy)}
                 onOptionSelect={(_, data) => {
                   if (data.optionValue) {
-                    handleSortChange({ sortBy: data.optionValue as SortOption });
+                    handleSortChange({
+                      sortBy: data.optionValue as SortOption,
+                    });
                   }
                 }}
               >
                 <Option value={SortOption.TIME_DESC}>
                   按时间排序（新→旧）
                 </Option>
-                <Option value={SortOption.TIME_ASC}>
-                  按时间排序（旧→新）
-                </Option>
-                <Option value={SortOption.KEY_ASC}>
-                  按键名排序（A→Z）
-                </Option>
-                <Option value={SortOption.KEY_DESC}>
-                  按键名排序（Z→A）
-                </Option>
+                <Option value={SortOption.TIME_ASC}>按时间排序（旧→新）</Option>
+                <Option value={SortOption.KEY_ASC}>按键名排序（A→Z）</Option>
+                <Option value={SortOption.KEY_DESC}>按键名排序（Z→A）</Option>
               </Dropdown>
             )}
           </div>
