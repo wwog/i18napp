@@ -175,6 +175,14 @@ export class TranslationService {
     );
   }
 
+  // 重命名翻译键
+  async renameTranslationKey(project_id: number, oldKey: string, newKey: string): Promise<void> {
+    await this.db.execute(
+      'UPDATE translations SET key = ?, updated_at = CURRENT_TIMESTAMP WHERE project_id = ? AND key = ?',
+      [newKey, project_id, oldKey]
+    );
+  }
+
   // 获取项目所有翻译，按key分组，支持排序
   async getProjectTranslations(project_id: number, sortConfig: SortConfig = { sortBy: SortOption.TIME_DESC }): Promise<TranslationGroup[]> {
     // 根据排序选项构建ORDER BY子句

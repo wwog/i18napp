@@ -1,7 +1,7 @@
-import { Project, projectService } from '../db/projects';
-import { SupportedLanguage, languageService } from '../db/languages';
-import { translationService, SortConfig, SortOption } from '../db/translations';
-import { TranslationItem } from './translation';
+import { Project, projectService } from "../db/projects";
+import { SupportedLanguage, languageService } from "../db/languages";
+import { translationService, SortConfig, SortOption } from "../db/translations";
+import { TranslationItem } from "./translation";
 
 /**
  * 项目数据管理工具类
@@ -31,7 +31,11 @@ export class ProjectDataManager {
     );
 
     // 加载翻译数据
-    const translations = await this.loadTranslationData(projectId, languages.map(lang => lang.code), sortConfig);
+    const translations = await this.loadTranslationData(
+      projectId,
+      languages.map((lang) => lang.code),
+      sortConfig
+    );
 
     return { project, languages, translations };
   }
@@ -40,32 +44,36 @@ export class ProjectDataManager {
    * 从数据库加载翻译数据
    */
   static async loadTranslationData(
-    projectId: number, 
-    languageCodes: string[], 
+    projectId: number,
+    languageCodes: string[],
     sortConfig?: SortConfig
   ): Promise<TranslationItem[]> {
     // 获取项目翻译分组数据，传递排序配置
     const translationGroups = await translationService.getProjectTranslations(
-      projectId, 
+      projectId,
       sortConfig || { sortBy: SortOption.TIME_DESC }
     );
-    
+
     // 将分组数据转换为UI需要的格式
-    const formattedTranslations: TranslationItem[] = translationGroups.map(group => {
-      const item: TranslationItem = {
-        id: group.key, // 使用key作为id
-        key: group.key
-      };
-      
-      // 为每个语言设置翻译值
-      languageCodes.forEach(langCode => {
-        const translation = group.translations.find(t => t.language === langCode);
-        item[langCode] = translation?.value || '';
-      });
-      
-      return item;
-    });
-    
+    const formattedTranslations: TranslationItem[] = translationGroups.map(
+      (group) => {
+        const item: TranslationItem = {
+          id: group.key, // 使用key作为id
+          key: group.key,
+        };
+
+        // 为每个语言设置翻译值
+        languageCodes.forEach((langCode) => {
+          const translation = group.translations.find(
+            (t) => t.language === langCode
+          );
+          item[langCode] = translation?.value || "";
+        });
+
+        return item;
+      }
+    );
+
     return formattedTranslations;
   }
 
@@ -95,17 +103,17 @@ export class TranslationOperationManager {
     languageCodes: string[]
   ): Promise<void> {
     // 准备批量创建翻译的数据
-    const translations = languageCodes.map(langCode => ({
+    const translations = languageCodes.map((langCode) => ({
       language: langCode,
-      value: '',
-      is_completed: false
+      value: "",
+      is_completed: false,
     }));
-    
+
     // 保存到数据库
     await translationService.bulkCreateTranslations({
       project_id: projectId,
       key: key.trim(),
-      translations: translations
+      translations: translations,
     });
   }
 
@@ -118,8 +126,8 @@ export class TranslationOperationManager {
     languageCode: string,
     value: string
   ): Promise<void> {
-    const is_completed = value.trim() !== '';
-    
+    const is_completed = value.trim() !== "";
+
     // 更新数据库
     await translationService.updateTranslation(
       projectId,
@@ -144,6 +152,18 @@ export class TranslationOperationManager {
   }
 
   /**
+   * 重命名翻译键
+   */
+  static async renameTranslationKey(
+    projectId: number,
+    oldKey: string,
+    newKey: string
+  ): Promise<void> {
+    // 使用数据库服务重命名翻译键
+    await translationService.renameTranslationKey(projectId, oldKey, newKey);
+  }
+
+  /**
    * 导出项目翻译数据
    */
   static async exportProjectTranslations(
@@ -151,8 +171,10 @@ export class TranslationOperationManager {
     languages: SupportedLanguage[]
   ): Promise<any> {
     // 使用翻译服务导出数据
-    const translationsData = await translationService.exportProjectTranslations(project.id);
-    
+    const translationsData = await translationService.exportProjectTranslations(
+      project.id
+    );
+
     const exportData = {
       project: {
         id: project.id,

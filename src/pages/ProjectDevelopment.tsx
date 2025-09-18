@@ -40,6 +40,7 @@ import {
   ArrowExportRegular,
   DeleteRegular,
   CopyRegular,
+  EditRegular,
 } from "@fluentui/react-icons";
 import { Project } from "../db/projects";
 import { SupportedLanguage } from "../db/languages";
@@ -91,6 +92,17 @@ export const ProjectDevelopment: React.FC = () => {
   >([]);
   const [isBatchCreating, setIsBatchCreating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+
+  // 翻译键重命名相关状态
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<TranslationItem | null>(
+    null
+  );
+  const [newKeyName, setNewKeyName] = useState("");
+  const [renameValidationError, setRenameValidationError] = useState<
+    string | null
+  >(null);
+  const [isRenaming, setIsRenaming] = useState(false);
 
   // 排序状态
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -757,6 +769,120 @@ export const ProjectDevelopment: React.FC = () => {
     return batchValidationResults.filter((result) => result.isValid).length;
   };
 
+  // 重命名相关函数
+  const handleRenameKey = (item: TranslationItem) => {
+    setRenameTarget(item);
+    setNewKeyName(item.key);
+    setRenameValidationError(null);
+    setIsRenameDialogOpen(true);
+  };
+
+  const handleRenameKeyChange = (value: string) => {
+    setNewKeyName(value);
+
+    // 实时验证新键名
+    if (value.trim() && renameTarget) {
+      const existingKeys = TranslationDataUtils.getAllKeys(translations).filter(
+        (key) => key !== renameTarget.key
+      );
+      const validation = TranslationKeyValidator.validateComplete(
+        value,
+        existingKeys,
+        {
+          caseSensitive: true,
+          checkSimilarity: true,
+          similarityThreshold: 0.85,
+          checkNamespaceConflict: true,
+        }
+      );
+      setRenameValidationError(
+        validation.isValid ? null : validation.message || null
+      );
+    } else {
+      setRenameValidationError(null);
+    }
+  };
+
+  const handleConfirmRename = async () => {
+    if (!project || !renameTarget) return;
+
+    const existingKeys = TranslationDataUtils.getAllKeys(translations).filter(
+      (key) => key !== renameTarget.key
+    );
+    const validation = TranslationKeyValidator.validateComplete(
+      newKeyName,
+      existingKeys,
+      {
+        caseSensitive: true,
+        checkSimilarity: true,
+        similarityThreshold: 0.85,
+        checkNamespaceConflict: true,
+      }
+    );
+
+    if (!validation.isValid) {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>{validation.message}</ToastTitle>
+        </Toast>,
+        { intent: "warning" }
+      );
+      return;
+    }
+
+    setIsRenaming(true);
+
+    try {
+      const languageCodes = languages.map((lang) => lang.code);
+
+      // 使用TranslationOperationManager重命名翻译键
+      await TranslationOperationManager.renameTranslationKey(
+        project.id,
+        renameTarget.key,
+        newKeyName.trim()
+      );
+
+      // 重新加载翻译数据
+      const updatedTranslations =
+        await ProjectDataManager.reloadTranslationData(
+          project.id,
+          languageCodes,
+          sortConfig
+        );
+      setTranslations(updatedTranslations);
+
+      // 关闭对话框
+      setIsRenameDialogOpen(false);
+      setRenameTarget(null);
+      setNewKeyName("");
+
+      dispatchToast(
+        <Toast>
+          <ToastTitle>翻译键重命名成功</ToastTitle>
+        </Toast>,
+        { intent: "success" }
+      );
+    } catch (error) {
+      console.error("重命名翻译键失败:", error);
+      const errorMessage = error instanceof Error ? error.message : "未知错误";
+      dispatchToast(
+        <Toast>
+          <ToastTitle>重命名失败: {errorMessage}</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  const handleCancelRename = () => {
+    setIsRenameDialogOpen(false);
+    setRenameTarget(null);
+    setNewKeyName("");
+    setRenameValidationError(null);
+  };
+
   const progress = calculateProgress();
   const incompleteItems = getIncompleteItems();
 
@@ -1073,9 +1199,28 @@ export const ProjectDevelopment: React.FC = () => {
                               }}
                             />
                           )}
-                          <span style={{ fontFamily: "monospace" }}>
+                          <span
+                            style={{
+                              fontFamily: "monospace",
+                              flex: 1,
+                            }}
+                          >
                             {item.key}
                           </span>
+                          <Button
+                            appearance="subtle"
+                            icon={<EditRegular />}
+                            size="small"
+                            onClick={() => handleRenameKey(item)}
+                            title="重命名翻译键"
+                            aria-label="重命名翻译键"
+                            style={{
+                              minWidth: "24px",
+                              height: "24px",
+                              padding: "0",
+                              opacity: 0.7,
+                            }}
+                          />
                         </div>
                         <Button
                           appearance="subtle"
@@ -1329,6 +1474,157 @@ export const ProjectDevelopment: React.FC = () => {
                 {isBatchCreating
                   ? "创建中..."
                   : `添加 ${getValidKeysCount()} 个翻译键`}
+              </Button>
+            </DialogActions>
+          </DialogContent>
+        </DialogSurface>
+      </Dialog>
+
+      {/* 重命名翻译键对话框 */}
+      <Dialog
+        open={isRenameDialogOpen}
+        onOpenChange={(_, data) => setIsRenameDialogOpen(data.open)}
+      >
+        <DialogSurface style={{ maxWidth: "500px" }}>
+          <DialogTitle>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <EditRegular />
+              重命名翻译键
+            </div>
+          </DialogTitle>
+          <DialogContent>
+            <DialogBody style={{ gridTemplateColumns: "1fr" }}>
+              {/* 警告信息 */}
+              <div
+                style={{
+                  padding: "12px",
+                  backgroundColor: tokens.colorPaletteYellowBackground1,
+                  border: `1px solid ${tokens.colorPaletteYellowBorder1}`,
+                  borderRadius: tokens.borderRadiusSmall,
+                  marginBottom: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <WarningRegular
+                    style={{
+                      color: tokens.colorPaletteYellowForeground1,
+                      fontSize: "16px",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontWeight: "600",
+                      color: tokens.colorPaletteYellowForeground1,
+                    }}
+                  >
+                    重要提醒
+                  </span>
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    color: tokens.colorPaletteYellowForeground1,
+                    fontSize: "14px",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  重命名翻译键可能影响已发布的应用程序。请确保：
+                  <br />
+                  • 更新所有使用此键的代码文件
+                  <br />
+                  • 重新部署相关应用程序
+                  <br />• 通知团队成员此次更改
+                </p>
+              </div>
+
+              {/* 键名编辑 */}
+              <div style={{ marginBottom: "16px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontWeight: "600",
+                  }}
+                >
+                  当前键名：
+                </label>
+                <div
+                  style={{
+                    padding: "8px",
+                    backgroundColor: tokens.colorNeutralBackground2,
+                    border: `1px solid ${tokens.colorNeutralStroke1}`,
+                    borderRadius: tokens.borderRadiusSmall,
+                    fontFamily: "monospace",
+                    fontSize: "14px",
+                  }}
+                >
+                  {renameTarget?.key}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontWeight: "600",
+                  }}
+                >
+                  新键名：
+                </label>
+                <Input
+                  value={newKeyName}
+                  onChange={(e) => handleRenameKeyChange(e.target.value)}
+                  placeholder="输入新的翻译键名..."
+                  autoComplete="off"
+                  spellCheck={false}
+                  style={{
+                    fontFamily: "monospace",
+                    borderColor: renameValidationError
+                      ? tokens.colorPaletteRedBorder1
+                      : undefined,
+                  }}
+                  disabled={isRenaming}
+                />
+                {renameValidationError && (
+                  <div
+                    style={{
+                      color: tokens.colorPaletteRedForeground1,
+                      fontSize: "12px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {renameValidationError}
+                  </div>
+                )}
+              </div>
+            </DialogBody>
+            <DialogActions>
+              <Button
+                appearance="secondary"
+                onClick={handleCancelRename}
+                disabled={isRenaming}
+              >
+                取消
+              </Button>
+              <Button
+                appearance="primary"
+                onClick={handleConfirmRename}
+                disabled={
+                  isRenaming ||
+                  !!renameValidationError ||
+                  !newKeyName.trim() ||
+                  newKeyName === renameTarget?.key
+                }
+              >
+                {isRenaming ? "重命名中..." : "确认重命名"}
               </Button>
             </DialogActions>
           </DialogContent>
