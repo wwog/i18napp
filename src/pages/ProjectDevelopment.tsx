@@ -1068,6 +1068,7 @@ export const ProjectDevelopment: React.FC = () => {
                         )
                       }
                       onChange={(_, data) => handleSelectAll(!!data.checked)}
+                      tabIndex={-1}
                     />
                   </TableHeaderCell>
                   <TableHeaderCell className={classes.tableCell}>
@@ -1170,6 +1171,7 @@ export const ProjectDevelopment: React.FC = () => {
                         onChange={(_, data) =>
                           handleItemSelection(item.id, !!data.checked)
                         }
+                        tabIndex={-1}
                       />
                     </TableCell>
                     <TableCell className={classes.tableCell}>
@@ -1220,6 +1222,7 @@ export const ProjectDevelopment: React.FC = () => {
                               padding: "0",
                               opacity: 0.7,
                             }}
+                            tabIndex={-1}
                           />
                         </div>
                         <Button
@@ -1229,6 +1232,7 @@ export const ProjectDevelopment: React.FC = () => {
                           onClick={() => handleDeleteSingle(item)}
                           title="删除此翻译"
                           aria-label="删除此翻译"
+                          tabIndex={-1}
                         />
                       </div>
                     </TableCell>
