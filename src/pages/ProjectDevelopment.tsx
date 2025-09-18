@@ -39,6 +39,7 @@ import {
   WarningRegular,
   ArrowExportRegular,
   DeleteRegular,
+  CopyRegular,
 } from "@fluentui/react-icons";
 import { Project } from "../db/projects";
 import { SupportedLanguage } from "../db/languages";
@@ -81,6 +82,15 @@ export const ProjectDevelopment: React.FC = () => {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [itemsToDelete, setItemsToDelete] = useState<TranslationItem[]>([]);
+
+  // 批量添加相关状态
+  const [isBatchAddDialogOpen, setIsBatchAddDialogOpen] = useState(false);
+  const [batchKeys, setBatchKeys] = useState("");
+  const [batchValidationResults, setBatchValidationResults] = useState<
+    { key: string; isValid: boolean; message?: string }[]
+  >([]);
+  const [isBatchCreating, setIsBatchCreating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
 
   // 排序状态
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -468,9 +478,14 @@ export const ProjectDevelopment: React.FC = () => {
     }
 
     try {
-      const translationData = await translationService.exportProjectTranslations(project.id);
-      const success = await TranslationExportManager.exportProjectAsJson(project, languages, translationData);
-      
+      const translationData =
+        await translationService.exportProjectTranslations(project.id);
+      const success = await TranslationExportManager.exportProjectAsJson(
+        project,
+        languages,
+        translationData
+      );
+
       if (success) {
         dispatchToast(
           <Toast>
@@ -503,9 +518,14 @@ export const ProjectDevelopment: React.FC = () => {
     }
 
     try {
-      const translationData = await translationService.exportProjectTranslations(project.id);
-      const success = await TranslationExportManager.exportAsCsv(project, languages, translationData);
-      
+      const translationData =
+        await translationService.exportProjectTranslations(project.id);
+      const success = await TranslationExportManager.exportAsCsv(
+        project,
+        languages,
+        translationData
+      );
+
       if (success) {
         dispatchToast(
           <Toast>
@@ -538,13 +558,21 @@ export const ProjectDevelopment: React.FC = () => {
     }
 
     try {
-      const translationData = await translationService.exportProjectTranslations(project.id);
-      const result = await TranslationExportManager.exportAllLanguagesAsJson(project, languages, translationData);
-      
+      const translationData =
+        await translationService.exportProjectTranslations(project.id);
+      const result = await TranslationExportManager.exportAllLanguagesAsJson(
+        project,
+        languages,
+        translationData
+      );
+
       if (result.success > 0) {
         dispatchToast(
           <Toast>
-            <ToastTitle>成功导出 {result.success} 个语言文件{result.failed > 0 ? `，${result.failed} 个失败` : ''}</ToastTitle>
+            <ToastTitle>
+              成功导出 {result.success} 个语言文件
+              {result.failed > 0 ? `，${result.failed} 个失败` : ""}
+            </ToastTitle>
           </Toast>,
           { intent: result.failed > 0 ? "warning" : "success" }
         );
@@ -565,6 +593,168 @@ export const ProjectDevelopment: React.FC = () => {
         { intent: "error" }
       );
     }
+  };
+
+  // 批量添加相关函数
+  const handleBatchAdd = () => {
+    setIsBatchAddDialogOpen(true);
+    setBatchKeys("");
+    setBatchValidationResults([]);
+  };
+
+  const handleBatchKeysChange = (value: string) => {
+    setBatchKeys(value);
+
+    // 实时验证所有键
+    const keys = value
+      .split("\n")
+      .map((key) => key.trim())
+      .filter((key) => key.length > 0);
+
+    if (keys.length === 0) {
+      setBatchValidationResults([]);
+      return;
+    }
+
+    const existingKeys = TranslationDataUtils.getAllKeys(translations);
+
+    const results = keys.map((key) => {
+      // 基础格式验证
+      const basicValidation = TranslationKeyValidator.validateComplete(
+        key,
+        existingKeys,
+        {
+          caseSensitive: true,
+          checkSimilarity: true,
+          similarityThreshold: 0.85,
+          checkNamespaceConflict: true,
+        }
+      );
+
+      if (!basicValidation.isValid) {
+        return {
+          key,
+          isValid: false,
+          message: basicValidation.message,
+        };
+      }
+
+      // 检查是否与其他待添加的键重复
+      const duplicateInBatch = keys.filter((k) => k === key).length > 1;
+      if (duplicateInBatch) {
+        return {
+          key,
+          isValid: false,
+          message: "在批量添加列表中重复",
+        };
+      }
+
+      return {
+        key,
+        isValid: true,
+      };
+    });
+
+    setBatchValidationResults(results);
+  };
+
+  const handleBatchCreate = async () => {
+    if (!project) return;
+
+    const validKeys = batchValidationResults
+      .filter((result) => result.isValid)
+      .map((result) => result.key);
+
+    if (validKeys.length === 0) {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>没有有效的翻译键可以添加</ToastTitle>
+        </Toast>,
+        { intent: "warning" }
+      );
+      return;
+    }
+
+    setIsBatchCreating(true);
+    setBatchProgress({ current: 0, total: validKeys.length });
+
+    try {
+      const languageCodes = languages.map((lang) => lang.code);
+      let successCount = 0;
+      let failureCount = 0;
+
+      // 逐个创建翻译键以便显示进度
+      for (let i = 0; i < validKeys.length; i++) {
+        const key = validKeys[i];
+        setBatchProgress({ current: i + 1, total: validKeys.length });
+
+        try {
+          await TranslationOperationManager.createTranslation(
+            project.id,
+            key,
+            languageCodes
+          );
+          successCount++;
+        } catch (error) {
+          console.error(`创建翻译键 ${key} 失败:`, error);
+          failureCount++;
+        }
+      }
+
+      // 重新加载翻译数据
+      const updatedTranslations =
+        await ProjectDataManager.reloadTranslationData(
+          project.id,
+          languageCodes,
+          sortConfig
+        );
+      setTranslations(updatedTranslations);
+
+      // 关闭对话框
+      setIsBatchAddDialogOpen(false);
+      setBatchKeys("");
+      setBatchValidationResults([]);
+
+      // 显示结果
+      if (failureCount === 0) {
+        dispatchToast(
+          <Toast>
+            <ToastTitle>成功添加 {successCount} 个翻译键</ToastTitle>
+          </Toast>,
+          { intent: "success" }
+        );
+      } else {
+        dispatchToast(
+          <Toast>
+            <ToastTitle>
+              添加完成：成功 {successCount} 个，失败 {failureCount} 个
+            </ToastTitle>
+          </Toast>,
+          { intent: "warning" }
+        );
+      }
+    } catch (error) {
+      console.error("批量创建翻译失败:", error);
+      dispatchToast(
+        <Toast>
+          <ToastTitle>批量创建翻译失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    } finally {
+      setIsBatchCreating(false);
+      setBatchProgress({ current: 0, total: 0 });
+    }
+  };
+
+  const handleBatchCancel = () => {
+    setIsBatchAddDialogOpen(false);
+    setBatchKeys("");
+    setBatchValidationResults([]);
+  };
+
+  const getValidKeysCount = () => {
+    return batchValidationResults.filter((result) => result.isValid).length;
   };
 
   const progress = calculateProgress();
@@ -674,9 +864,13 @@ export const ProjectDevelopment: React.FC = () => {
               </MenuTrigger>
               <MenuPopover>
                 <MenuList>
-                  <MenuItem onClick={handleExportProject}>导出项目（JSON）</MenuItem>
+                  <MenuItem onClick={handleExportProject}>
+                    导出项目（JSON）
+                  </MenuItem>
                   <MenuItem onClick={handleExportCsv}>导出表格（CSV）</MenuItem>
-                  <MenuItem onClick={handleExportAllLanguages}>分语言导出（JSON）</MenuItem>
+                  <MenuItem onClick={handleExportAllLanguages}>
+                    分语言导出（JSON）
+                  </MenuItem>
                 </MenuList>
               </MenuPopover>
             </Menu>
@@ -694,6 +888,13 @@ export const ProjectDevelopment: React.FC = () => {
               disabled={isAddingNew}
             >
               新增翻译
+            </Button>
+            <Button
+              appearance="outline"
+              icon={<CopyRegular />}
+              onClick={handleBatchAdd}
+            >
+              批量添加
             </Button>
             <Button
               appearance="outline"
@@ -962,6 +1163,172 @@ export const ProjectDevelopment: React.FC = () => {
               </Button>
               <Button appearance="primary" onClick={handleConfirmDelete}>
                 确认删除
+              </Button>
+            </DialogActions>
+          </DialogContent>
+        </DialogSurface>
+      </Dialog>
+
+      {/* 批量添加翻译键对话框 */}
+      <Dialog
+        open={isBatchAddDialogOpen}
+        onOpenChange={(_, data) => setIsBatchAddDialogOpen(data.open)}
+      >
+        <DialogSurface style={{ maxWidth: "600px" }}>
+          <DialogTitle>批量添加翻译键</DialogTitle>
+          <DialogContent>
+            <DialogBody>
+              <div style={{ marginBottom: "12px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontWeight: "600",
+                  }}
+                >
+                  翻译键列表：
+                </label>
+                <textarea
+                  value={batchKeys}
+                  autoCapitalize={"off"}
+                  onChange={(e) => handleBatchKeysChange(e.target.value)}
+                  placeholder={`例如：\nuser.profile.name\nuser.profile.email\nuser.profile.phone\nsettings.language\nsettings.theme`}
+                  rows={8}
+                  style={{
+                    width: "100%",
+                    padding: "8px",
+                    border: `1px solid ${tokens.colorNeutralStroke1}`,
+                    borderRadius: tokens.borderRadiusSmall,
+                    fontFamily: "monospace",
+                    fontSize: "14px",
+                    resize: "vertical",
+                    minHeight: "120px",
+                    boxSizing: "border-box",
+                  }}
+                  disabled={isBatchCreating}
+                />
+              </div>
+
+              {/* 验证结果显示 */}
+              {batchValidationResults.length > 0 && (
+                <div
+                  style={{
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    border: `1px solid ${tokens.colorNeutralStroke1}`,
+                    borderRadius: tokens.borderRadiusSmall,
+                    padding: "8px",
+                    backgroundColor: tokens.colorNeutralBackground2,
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: "600",
+                      marginBottom: "8px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    验证结果：有效 {getValidKeysCount()} / 总计{" "}
+                    {batchValidationResults.length} 个
+                  </div>
+                  {batchValidationResults.map((result, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "2px 0",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "50%",
+                          backgroundColor: result.isValid
+                            ? tokens.colorPaletteGreenBackground2
+                            : tokens.colorPaletteRedBackground2,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "10px",
+                          color: "white",
+                        }}
+                      >
+                        {result.isValid ? "✓" : "✗"}
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: "monospace",
+                          flex: 1,
+                        }}
+                      >
+                        {result.key}
+                      </span>
+                      {!result.isValid && result.message && (
+                        <span
+                          style={{
+                            color: tokens.colorPaletteRedForeground1,
+                            fontSize: "11px",
+                          }}
+                        >
+                          {result.message}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 进度显示 */}
+              {isBatchCreating && (
+                <div style={{ marginBottom: "12px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    <span>创建进度</span>
+                    <span>
+                      {batchProgress.current} / {batchProgress.total}
+                    </span>
+                  </div>
+                  <ProgressBar
+                    value={
+                      batchProgress.total > 0
+                        ? batchProgress.current / batchProgress.total
+                        : 0
+                    }
+                  />
+                </div>
+              )}
+            </DialogBody>
+            <DialogActions>
+              <Button
+                appearance="secondary"
+                onClick={handleBatchCancel}
+                disabled={isBatchCreating}
+              >
+                取消
+              </Button>
+              <Button
+                appearance="primary"
+                onClick={handleBatchCreate}
+                disabled={
+                  isBatchCreating ||
+                  getValidKeysCount() === 0 ||
+                  batchValidationResults.length === 0
+                }
+              >
+                {isBatchCreating
+                  ? "创建中..."
+                  : `添加 ${getValidKeysCount()} 个翻译键`}
               </Button>
             </DialogActions>
           </DialogContent>
