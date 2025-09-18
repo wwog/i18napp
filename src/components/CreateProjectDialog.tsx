@@ -245,7 +245,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                           description: e.target.value,
                         }))
                       }
-                      placeholder="输入项目描述（可选）"
+                      placeholder="输入项目描述,例如项目的变量规范（可选）"
                       rows={4}
                       resize="none"
                       style={{

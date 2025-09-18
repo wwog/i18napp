@@ -175,6 +175,14 @@ export class TranslationService {
     );
   }
 
+  // 删除特定语言的所有翻译
+  async deleteLanguageTranslations(project_id: number, language: string): Promise<void> {
+    await this.db.execute(
+      'DELETE FROM translations WHERE project_id = ? AND language = ?',
+      [project_id, language]
+    );
+  }
+
   // 重命名翻译键
   async renameTranslationKey(project_id: number, oldKey: string, newKey: string): Promise<void> {
     await this.db.execute(

@@ -41,6 +41,7 @@ import {
   DeleteRegular,
   CopyRegular,
   EditRegular,
+  SettingsRegular,
 } from "@fluentui/react-icons";
 import { Project } from "../db/projects";
 import { SupportedLanguage } from "../db/languages";
@@ -108,6 +109,15 @@ export const ProjectDevelopment: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<SortConfig>({
     sortBy: SortOption.TIME_DESC,
   });
+
+  // 语言管理相关状态
+  const [isLanguageManageDialogOpen, setIsLanguageManageDialogOpen] = useState(false);
+  const [allLanguages, setAllLanguages] = useState<SupportedLanguage[]>([]);
+  const [isAddingLanguage, setIsAddingLanguage] = useState(false);
+  const [selectedNewLanguage, setSelectedNewLanguage] = useState<string>("");
+  const [isRemoveLanguageDialogOpen, setIsRemoveLanguageDialogOpen] = useState(false);
+  const [languageToRemove, setLanguageToRemove] = useState<SupportedLanguage | null>(null);
+  const [isRemovingLanguage, setIsRemovingLanguage] = useState(false);
 
   // 引用用于自动聚焦
   const newKeyInputRef = useRef<HTMLInputElement>(null);
@@ -883,6 +893,140 @@ export const ProjectDevelopment: React.FC = () => {
     setRenameValidationError(null);
   };
 
+  // 语言管理相关函数
+  const handleLanguageManage = async () => {
+    setIsLanguageManageDialogOpen(true);
+    try {
+      // 加载所有可用语言
+      const { languageService } = await import("../db/languages");
+      const allLangs = await languageService.getAllActiveLanguages();
+      setAllLanguages(allLangs);
+    } catch (error) {
+      console.error("加载语言列表失败:", error);
+      dispatchToast(
+        <Toast>
+          <ToastTitle>加载语言列表失败</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    }
+  };
+
+  const handleAddLanguage = async () => {
+    if (!selectedNewLanguage || !project) return;
+
+    setIsAddingLanguage(true);
+    try {
+      // 更新项目的选中语言列表
+      const updatedLanguages = [...project.selected_languages, selectedNewLanguage];
+      
+      // 更新项目数据库记录
+      const { projectService } = await import("../db/projects");
+      await projectService.updateProject(project.id, {
+        selected_languages: updatedLanguages,
+      });
+
+      // 为所有现有翻译键添加新语言的空翻译
+      const existingKeys = TranslationDataUtils.getAllKeys(translations);
+      if (existingKeys.length > 0) {
+        await TranslationOperationManager.addLanguageToProject(
+          project.id,
+          selectedNewLanguage,
+          existingKeys
+        );
+      }
+
+      // 重新加载项目数据
+      await loadProjectData();
+
+      setSelectedNewLanguage("");
+      setIsLanguageManageDialogOpen(false);
+
+      dispatchToast(
+        <Toast>
+          <ToastTitle>语言添加成功</ToastTitle>
+        </Toast>,
+        { intent: "success" }
+      );
+    } catch (error) {
+      console.error("添加语言失败:", error);
+      const errorMessage = error instanceof Error ? error.message : "未知错误";
+      dispatchToast(
+        <Toast>
+          <ToastTitle>添加语言失败: {errorMessage}</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    } finally {
+      setIsAddingLanguage(false);
+    }
+  };
+
+  const handleRemoveLanguage = (language: SupportedLanguage) => {
+    setLanguageToRemove(language);
+    setIsRemoveLanguageDialogOpen(true);
+  };
+
+  const handleConfirmRemoveLanguage = async () => {
+    if (!languageToRemove || !project) return;
+
+    setIsRemovingLanguage(true);
+    try {
+      // 更新项目的选中语言列表
+      const updatedLanguages = project.selected_languages.filter(
+        (code) => code !== languageToRemove.code
+      );
+      
+      // 更新项目数据库记录
+      const { projectService } = await import("../db/projects");
+      await projectService.updateProject(project.id, {
+        selected_languages: updatedLanguages,
+      });
+
+      // 删除该语言的所有翻译数据
+      await TranslationOperationManager.removeLanguageFromProject(
+        project.id,
+        languageToRemove.code
+      );
+
+      // 重新加载项目数据
+      await loadProjectData();
+
+      setIsRemoveLanguageDialogOpen(false);
+      setLanguageToRemove(null);
+
+      dispatchToast(
+        <Toast>
+          <ToastTitle>语言删除成功</ToastTitle>
+        </Toast>,
+        { intent: "success" }
+      );
+    } catch (error) {
+      console.error("删除语言失败:", error);
+      const errorMessage = error instanceof Error ? error.message : "未知错误";
+      dispatchToast(
+        <Toast>
+          <ToastTitle>删除语言失败: {errorMessage}</ToastTitle>
+        </Toast>,
+        { intent: "error" }
+      );
+    } finally {
+      setIsRemovingLanguage(false);
+    }
+  };
+
+  const handleCancelRemoveLanguage = () => {
+    setIsRemoveLanguageDialogOpen(false);
+    setLanguageToRemove(null);
+  };
+
+  const getAvailableLanguages = () => {
+    if (!project) return [];
+    return allLanguages.filter(
+      (lang) => !project.selected_languages.includes(lang.code)
+    );
+  };
+
   const progress = calculateProgress();
   const incompleteItems = getIncompleteItems();
 
@@ -982,6 +1126,13 @@ export const ProjectDevelopment: React.FC = () => {
 
           {/* 右侧操作区域 */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Button
+              appearance="outline"
+              icon={<SettingsRegular />}
+              onClick={handleLanguageManage}
+            >
+              语言管理
+            </Button>
             <Menu>
               <MenuTrigger disableButtonEnhancement>
                 <Button appearance="outline" icon={<ArrowExportRegular />}>
@@ -1629,6 +1780,293 @@ export const ProjectDevelopment: React.FC = () => {
                 }
               >
                 {isRenaming ? "重命名中..." : "确认重命名"}
+              </Button>
+            </DialogActions>
+          </DialogContent>
+        </DialogSurface>
+      </Dialog>
+
+      {/* 语言管理对话框 */}
+      <Dialog
+        open={isLanguageManageDialogOpen}
+        onOpenChange={(_, data) => setIsLanguageManageDialogOpen(data.open)}
+      >
+        <DialogSurface style={{ maxWidth: "650px", minHeight: "500px" }}>
+          <DialogTitle>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <SettingsRegular />
+              语言管理
+            </div>
+          </DialogTitle>
+          <DialogContent>
+            <div style={{ 
+              display: "flex", 
+              flexDirection: "column", 
+              gap: "24px",
+              padding: "20px 0",
+              minHeight: "400px"
+            }}>
+              {/* 当前语言列表 */}
+              <div style={{ flex: "1" }}>
+                <div
+                  style={{
+                    fontWeight: "600",
+                    marginBottom: "12px",
+                    fontSize: "16px",
+                    color: tokens.colorNeutralForeground1,
+                  }}
+                >
+                  当前项目语言 ({languages.length})
+                </div>
+                <div
+                  style={{
+                    border: `1px solid ${tokens.colorNeutralStroke1}`,
+                    borderRadius: tokens.borderRadiusSmall,
+                    maxHeight: "250px",
+                    overflowY: "auto",
+                    backgroundColor: tokens.colorNeutralBackground1,
+                  }}
+                >
+                  {languages.map((lang, index) => (
+                    <div
+                      key={lang.code}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "16px",
+                        borderBottom:
+                          index < languages.length - 1
+                            ? `1px solid ${tokens.colorNeutralStroke2}`
+                            : undefined,
+                        transition: "background-color 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = tokens.colorNeutralBackground2;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <Badge appearance="outline" style={{ minWidth: "50px", textAlign: "center" }}>
+                          {lang.code}
+                        </Badge>
+                        <span style={{ fontSize: "14px", fontWeight: "500" }}>
+                          {lang.name}
+                        </span>
+                      </div>
+                      <Button
+                        appearance="subtle"
+                        size="small"
+                        icon={<DeleteRegular />}
+                        onClick={() => handleRemoveLanguage(lang)}
+                        disabled={languages.length <= 1}
+                        title={
+                          languages.length <= 1
+                            ? "项目至少需要一种语言"
+                            : `删除 ${lang.name}`
+                        }
+                        style={{
+                          color: languages.length <= 1 
+                            ? tokens.colorNeutralForeground4 
+                            : tokens.colorPaletteRedForeground2
+                        }}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                  ))}
+                  {languages.length === 0 && (
+                    <div
+                      style={{
+                        padding: "32px",
+                        textAlign: "center",
+                        color: tokens.colorNeutralForeground3,
+                        fontSize: "14px",
+                      }}
+                    >
+                      暂无语言
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 添加新语言 */}
+              <div style={{ 
+                borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+                paddingTop: "20px"
+              }}>
+                <div
+                  style={{
+                    fontWeight: "600",
+                    marginBottom: "12px",
+                    fontSize: "16px",
+                    color: tokens.colorNeutralForeground1,
+                  }}
+                >
+                  添加新语言
+                </div>
+                <div style={{ 
+                  display: "flex", 
+                  gap: "12px", 
+                  alignItems: "flex-start",
+                  flexWrap: "wrap"
+                }}>
+                  <div style={{ flex: "1", minWidth: "300px" }}>
+                    <Dropdown
+                      placeholder="选择要添加的语言..."
+                      value={
+                        selectedNewLanguage
+                          ? allLanguages.find((lang) => lang.code === selectedNewLanguage)?.name || ""
+                          : ""
+                      }
+                      onOptionSelect={(_, data) => {
+                        setSelectedNewLanguage(data.optionValue || "");
+                      }}
+                      disabled={isAddingLanguage || getAvailableLanguages().length === 0}
+                      style={{ width: "100%" }}
+                    >
+                      {getAvailableLanguages().map((lang) => (
+                        <Option key={lang.code} value={lang.code} text={`${lang.name} (${lang.code})`}>
+                          {lang.name} ({lang.code})
+                        </Option>
+                      ))}
+                    </Dropdown>
+                    {getAvailableLanguages().length === 0 && (
+                      <div
+                        style={{
+                          color: tokens.colorNeutralForeground3,
+                          fontSize: "12px",
+                          marginTop: "6px",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        没有可添加的语言
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    appearance="primary"
+                    onClick={handleAddLanguage}
+                    disabled={
+                      !selectedNewLanguage ||
+                      isAddingLanguage ||
+                      getAvailableLanguages().length === 0
+                    }
+                    icon={isAddingLanguage ? undefined : <AddRegular />}
+                    style={{ 
+                      minWidth: "100px",
+                      height: "32px"
+                    }}
+                  >
+                    {isAddingLanguage ? "添加中..." : "添加"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <DialogActions style={{ paddingTop: "16px" }}>
+              <Button
+                appearance="secondary"
+                onClick={() => setIsLanguageManageDialogOpen(false)}
+                disabled={isAddingLanguage}
+              >
+                关闭
+              </Button>
+            </DialogActions>
+          </DialogContent>
+        </DialogSurface>
+      </Dialog>
+
+      {/* 删除语言确认对话框 */}
+      <Dialog
+        open={isRemoveLanguageDialogOpen}
+        onOpenChange={(_, data) => setIsRemoveLanguageDialogOpen(data.open)}
+      >
+        <DialogSurface style={{ maxWidth: "500px" }}>
+          <DialogTitle>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <WarningRegular style={{ color: tokens.colorPaletteRedForeground1 }} />
+              确认删除语言
+            </div>
+          </DialogTitle>
+          <DialogContent>
+            <DialogBody>
+              {/* 警告信息 */}
+              <div
+                style={{
+                  padding: "12px",
+                  backgroundColor: tokens.colorPaletteRedBackground1,
+                  border: `1px solid ${tokens.colorPaletteRedBorder1}`,
+                  borderRadius: tokens.borderRadiusSmall,
+                  marginBottom: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <WarningRegular
+                    style={{
+                      color: tokens.colorPaletteRedForeground1,
+                      fontSize: "16px",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontWeight: "600",
+                      color: tokens.colorPaletteRedForeground1,
+                    }}
+                  >
+                    危险操作
+                  </span>
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    color: tokens.colorPaletteRedForeground1,
+                    fontSize: "14px",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  删除语言将永久删除该语言的所有翻译数据，此操作不可撤销！
+                </p>
+              </div>
+
+              <p>
+                您确定要删除语言{" "}
+                <Badge appearance="outline">
+                  {languageToRemove?.name} ({languageToRemove?.code})
+                </Badge>{" "}
+                吗？
+              </p>
+              <p style={{ fontSize: "14px", color: tokens.colorNeutralForeground3 }}>
+                这将删除该语言在此项目中的所有翻译内容。
+              </p>
+            </DialogBody>
+            <DialogActions>
+              <Button
+                appearance="secondary"
+                onClick={handleCancelRemoveLanguage}
+                disabled={isRemovingLanguage}
+              >
+                取消
+              </Button>
+              <Button
+                appearance="primary"
+                onClick={handleConfirmRemoveLanguage}
+                disabled={isRemovingLanguage}
+                style={{
+                  backgroundColor: tokens.colorPaletteRedBackground2,
+                  borderColor: tokens.colorPaletteRedBorder2,
+                  color: tokens.colorPaletteRedForeground2,
+                }}
+              >
+                {isRemovingLanguage ? "删除中..." : "确认删除"}
               </Button>
             </DialogActions>
           </DialogContent>

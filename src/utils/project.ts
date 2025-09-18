@@ -191,4 +191,36 @@ export class TranslationOperationManager {
 
     return exportData;
   }
+
+  /**
+   * 为项目添加新语言
+   * 为所有现有翻译键创建新语言的空翻译记录
+   */
+  static async addLanguageToProject(
+    projectId: number,
+    languageCode: string,
+    existingKeys: string[]
+  ): Promise<void> {
+    // 为每个现有翻译键创建新语言的空翻译
+    for (const key of existingKeys) {
+      await translationService.createTranslation({
+        project_id: projectId,
+        key: key,
+        language: languageCode,
+        value: "",
+        is_completed: false,
+      });
+    }
+  }
+
+  /**
+   * 从项目中删除语言
+   * 删除该语言的所有翻译数据
+   */
+  static async removeLanguageFromProject(
+    projectId: number,
+    languageCode: string
+  ): Promise<void> {
+    await translationService.deleteLanguageTranslations(projectId, languageCode);
+  }
 }
